@@ -1,0 +1,12 @@
+{
+  "source_mode": "file",
+  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Source/metadata_R9827_20260413.xlsx",
+  "template_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Metadata Tool/Template/metadata_TEMPLATE_YYYYMMDD.xlsx",
+  "output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
+  "t7_primer_path": "C:/Users/VUDUCHAI/Downloads/DANH SACH PRIMER KHONG DUNG TREN T7.xlsx",
+  "t7_folder_override": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
+  "last_collision_per_file": {
+    "metadata_R9827_20260413.xlsx": 5
+  },
+  "last_error_files": []
+}

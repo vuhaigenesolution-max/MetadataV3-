@@ -12,8 +12,9 @@ from backend import run_backend
 
 def go_home():
     try:
+        home_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HomePage.py")
         root.destroy()
-        os.startfile("HomePage.py")
+        os.startfile(home_path)
     except Exception as e:
         messagebox.showerror("Error", f"Không mở được HomePage.py\n{e}")
 
@@ -32,6 +33,7 @@ CONFIG_PATH = os.path.join(get_exe_dir(), "last_paths.json")
 DEFAULT_LAST = {
     "source_mode": "file",
     "source_path": "",
+    "template_path": "",
     "output_path": ""
 }
 
@@ -49,12 +51,12 @@ def load_last_paths():
     return DEFAULT_LAST.copy()
 
 def save_last_paths(data: dict):
-    # đảm bảo folder tồn tại (thường folder exe đã tồn tại)
+    existing = load_last_paths()
+    existing.update(data)
     folder = os.path.dirname(CONFIG_PATH)
     os.makedirs(folder, exist_ok=True)
-
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(existing, f, ensure_ascii=False, indent=2)
 
 
 
@@ -85,7 +87,7 @@ def update_path_hint(label_widget: tk.Label, path: str, kind: str):
 # GUI
 # =========================================================
 root = tk.Tk()
-root.title("🌟🌟🌟Excel Pool Allocation Tool🌟🌟🌟")
+root.title("🌟🌟🌟META DATA TOOL🌟🌟🌟")
 root.geometry("900x520")
 root.configure(bg="#0b1d2c")
 
@@ -244,6 +246,30 @@ def browse_output():
 ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_output)\
     .grid(row=2, column=2, padx=(8, 10), pady=6, sticky="w")
 
+# =========================
+# Template row
+# =========================
+template_label = tk.Label(card, text="Template", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+template_label.grid(row=3, column=0, padx=(10, 10), pady=6, sticky="e")
+
+template_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
+template_entry.grid(row=3, column=1, padx=6, pady=6, sticky="ew")
+template_entry.insert(0, last.get("template_path", ""))
+
+template_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
+template_hint.grid(row=3, column=3, padx=(6, 8), sticky="w")
+update_path_hint(template_hint, template_entry.get(), "file")
+
+def browse_template():
+    path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if path:
+        template_entry.delete(0, tk.END)
+        template_entry.insert(0, path)
+        update_path_hint(template_hint, path, "file")
+
+ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_template)\
+    .grid(row=3, column=2, padx=(8, 10), pady=6, sticky="w")
+
 # =========================================================
 # Progress
 # =========================================================
@@ -251,7 +277,7 @@ progress_var = tk.DoubleVar(value=0)
 progress_start_time = 0.0
 
 progress_frame = tk.Frame(card, bg=CARD_BG)
-progress_frame.grid(row=3, column=0, columnspan=4, pady=(16, 4))
+progress_frame.grid(row=4, column=0, columnspan=4, pady=(16, 4))
 
 progress_bar = ttk.Progressbar(progress_frame, variable=progress_var, maximum=100, length=460, style="Success.Horizontal.TProgressbar")
 progress_bar.pack(side="left", padx=(0, 10))
@@ -262,6 +288,10 @@ progress_percent_label.pack(side="left")
 elapsed_time_label = tk.Label(progress_frame, text="0.0s", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG)
 elapsed_time_label.pack(side="left", padx=(12, 0))
 
+_target_pct   = 0.0
+_anim_active  = False
+
+
 def ui_set_progress(p):
     progress_var.set(p)
     progress_percent_label.config(text=f"{int(p)}%")
@@ -269,6 +299,27 @@ def ui_set_progress(p):
         elapsed = time.time() - progress_start_time
         elapsed_time_label.config(text=f"{elapsed:.1f}s")
     root.update_idletasks()
+
+
+def _anim_tick():
+    if not _anim_active:
+        return
+    current = progress_var.get()
+    if current < _target_pct:
+        step = max(0.4, (_target_pct - current) * 0.06)
+        ui_set_progress(min(current + step, _target_pct))
+    root.after(40, _anim_tick)
+
+
+def start_smooth_anim():
+    global _anim_active
+    _anim_active = True
+    _anim_tick()
+
+
+def stop_smooth_anim():
+    global _anim_active
+    _anim_active = False
 
 def disable_buttons(disabled: bool):
     state = "disabled" if disabled else "normal"
@@ -286,25 +337,26 @@ def open_output_folder():
         messagebox.showwarning("Warning", "Destination folder không tồn tại!")
 
 btn_open_folder = ttk.Button(card, text="Open Destination Folder", style="Accent.TButton", command=open_output_folder)
-btn_open_folder.grid(row=6, column=0, columnspan=4, pady=(10, 0))
+btn_open_folder.grid(row=7, column=0, columnspan=4, pady=(10, 0))
 btn_open_folder.grid_remove()
 
 # =========================================================
 # Run
 # =========================================================
 btn_frame = tk.Frame(card, bg=CARD_BG)
-btn_frame.grid(row=5, column=0, columnspan=4, pady=(10, 0))
+btn_frame.grid(row=6, column=0, columnspan=4, pady=(10, 0))
 
 btn_run = ttk.Button(btn_frame, text="Run", style="Accent.TButton", width=16)
 btn_run.pack(side="left", padx=14, pady=4)
 
 def validate_paths():
     mode = mode_var.get()
-    src = source_entry.get().strip()
-    out = output_entry.get().strip()
+    src  = source_entry.get().strip()
+    tmpl = template_entry.get().strip()
+    out  = output_entry.get().strip()
 
-    if not src or not out:
-        return False, "Vui lòng chọn đủ Source và Destination."
+    if not src or not tmpl or not out:
+        return False, "Vui lòng chọn đủ Source, Template và Destination."
 
     if mode == "file":
         if not os.path.isfile(src):
@@ -312,6 +364,9 @@ def validate_paths():
     else:
         if not os.path.isdir(src):
             return False, "Source mode=Folder nhưng Source không phải folder."
+
+    if not os.path.isfile(tmpl):
+        return False, "Template phải là file Excel (.xlsx / .xls)."
 
     if not os.path.isdir(out):
         return False, "Destination phải là folder."
@@ -323,56 +378,66 @@ def on_run():
         messagebox.showerror("Error", msg)
         return
 
-    # Save last paths
     data = {
-        "source_mode": mode_var.get(),
-        "source_path": source_entry.get().strip(),
-        "output_path": output_entry.get().strip()
+        "source_mode":   mode_var.get(),
+        "source_path":   source_entry.get().strip(),
+        "template_path": template_entry.get().strip(),
+        "output_path":   output_entry.get().strip()
     }
     save_last_paths(data)
 
     btn_open_folder.grid_remove()
     ui_set_progress(0)
     disable_buttons(True)
+    start_smooth_anim()
 
     def worker():
-        global progress_start_time
+        global progress_start_time, _target_pct
         progress_start_time = time.time()
 
-        try:
-            # Progress giả lập lên 95% trong lúc chạy
-            for p in range(0, 96):
-                root.after(0, ui_set_progress, p)
-                time.sleep(0.02)
+        def on_progress(current, total):
+            global _target_pct
+            _target_pct = int(current / total * 100) if total else 100
 
-            # ✅ Run backend thật (hàm run_backend mới của bạn)
+        try:
             result = run_backend(
                 data["source_mode"],
                 data["source_path"],
-                data["output_path"]   # đây là des_path (folder destination)
+                data["template_path"],
+                data["output_path"],
+                progress_callback=on_progress,
             )
-
-            # ✅ Tạo msg_done ở đây
-            if isinstance(result, list):
-                msg_done = f"Hoàn tất! Đã xuất {len(result)} file.\nFolder: {data['output_path']}"
-            else:
-                msg_done = f"Hoàn tất! File: {result}"
-
-            # Done
-            root.after(0, ui_set_progress, 100)
-            root.after(0, btn_open_folder.grid)  # show open folder button
-            root.after(0, lambda: messagebox.showinfo("Success", msg_done))
+            # Lưu collision/error data để primreT7 hiện summary sau khi chạy T7
+            save_last_paths({
+                "last_collision_per_file": result.get("collision_per_file", {}),
+                "last_error_files":        result.get("error_files", []),
+            })
+            root.after(0, stop_smooth_anim)
+            root.after(0, lambda: ui_set_progress(100))
+            root.after(0, btn_open_folder.grid)
+            root.after(0, _open_primer_t7)
 
         except Exception as e:
+            root.after(0, stop_smooth_anim)
             root.after(0, lambda: messagebox.showerror("Error", str(e)))
-            root.after(0, ui_set_progress, 0)
+            root.after(0, lambda: ui_set_progress(0))
         finally:
             root.after(0, lambda: disable_buttons(False))
-
 
     threading.Thread(target=worker, daemon=True).start()
 
 btn_run.config(command=on_run)
+
+
+# =========================================================
+# Mở primreT7 sau khi Combie chạy xong
+# =========================================================
+def _open_primer_t7():
+    try:
+        t7_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "primreT7.py")
+        os.startfile(t7_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"Không mở được primreT7.py\n{e}")
 
 # Footer
 # footer = tk.Label(root, text="Gene Solutions • LAB Automation Tool", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=BG)
