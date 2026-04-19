@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import subprocess
 import time
 import threading
 import tkinter as tk
@@ -13,8 +14,9 @@ from backend import run_backend
 def go_home():
     try:
         home_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HomePage.py")
+        kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        subprocess.Popen([sys.executable, home_path], **kwargs)
         root.destroy()
-        os.startfile(home_path)
     except Exception as e:
         messagebox.showerror("Error", f"Không mở được HomePage.py\n{e}")
 

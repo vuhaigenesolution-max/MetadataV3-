@@ -21,14 +21,21 @@ BUTTON_FONT = ("Bahnschrift", 12, "bold")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ===== Open other pages =====
+def _spawn(script_name):
+    kwargs = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    subprocess.Popen([sys.executable, os.path.join(BASE_DIR, script_name)], **kwargs)
+    root.destroy()
+
 def open_combine():
-    subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "CombinePage.py")])
+    _spawn("CombinePage.py")
 
 def open_sample_import():
-    subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "SampleImportPage.py")])
+    _spawn("SampleImportPage.py")
 
 def open_seed_file():
-    subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "SeedFilePage.py")])
+    _spawn("SeedFilePage.py")
 
 # ===== Window =====
 root = tk.Tk()

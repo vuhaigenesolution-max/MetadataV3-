@@ -1,19 +1,45 @@
+# =============================================================================
+# SampleImportPage — Flow tổng quan
+# =============================================================================
+# 1. Người dùng chọn:
+#      Source              : file hoặc folder chứa file metadata (metadata_Rxxx_YYYYMMDD.xlsx)
+#      Destination         : folder lưu output
+#      Nhật ký dò miền Nam : file Excel tra cứu kit theo runname (cột A + C)
+#      Nhật ký dò miền Bắc : file Excel tra cứu sequencer theo đợt chạy (cột A + D)
+#      Gói XN              : file Excel bảng labcode → tra cứu Description
+#
+# 2. Nhấn Run → backend.run_sample_import() xử lý từng file:
+#      a. Xuất SampleImport CSV  (sheet SampleImport, từ dòng 24)
+#      b. Xuất Aviti Manifest CSV (sheet Aviti Manifest)
+#
+# 3. Kiểm tra tự động sau khi xuất (không chặn output):
+#      Nhật ký Nam — tra cột A (runname) + cột C (kit):
+#                    nếu kit chứa T7/MGI → cảnh báo nếu cột J có ô trống
+#      Nhật ký Bắc — tra cột A (Đợt chạy / Pxxx) + cột D (Sequencer):
+#                    nếu Sequencer chứa G99 → cảnh báo nếu cột "Sample Project" có ô trống
+#      Tất cả      — so sánh cột Description với bảng labcode (Gói XN):
+#                    cảnh báo nếu giá trị lệch
+# =============================================================================
+
 import os
 import sys
 import json
 import time
 import threading
+import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
 # ============= IMPORT BACKEND =============
-from backend import run_backend
+from backend import run_sample_import
 
 def go_home():
     try:
+        home_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HomePage.py")
+        kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        subprocess.Popen([sys.executable, home_path], **kwargs)
         root.destroy()
-        os.startfile("HomePage.py")
     except Exception as e:
         messagebox.showerror("Error", f"Không mở được HomePage.py\n{e}")
 
@@ -32,7 +58,10 @@ CONFIG_PATH = os.path.join(get_exe_dir(), "last_paths.json")
 DEFAULT_LAST = {
     "source_mode": "file",
     "source_path": "",
-    "output_path": ""
+    "output_path": "",
+    "nhat_ky_nam_path": "",
+    "nhat_ky_bac_path": "",
+    "goi_xn_path": "",
 }
 
 def load_last_paths():
@@ -58,14 +87,6 @@ def save_last_paths(data: dict):
 
 
 
-# =========================================================
-# Backend runner (không template)
-# =========================================================
-def run_backend_ui(source_mode, source_path, des_path):
-    result = run_backend(source_mode, source_path, des_path)
-    if isinstance(result, list):
-        return {"mode": "folder", "count": len(result), "files": result, "output": des_path}
-    return {"mode": "file", "count": 1, "files": [result], "output": des_path}
 
 
 
@@ -86,7 +107,7 @@ def update_path_hint(label_widget: tk.Label, path: str, kind: str):
 # =========================================================
 root = tk.Tk()
 root.title("🌟🌟🌟Excel Pool Allocation Tool🌟🌟🌟")
-root.geometry("900x520")
+root.geometry("900x650")
 root.configure(bg="#0b1d2c")
 
 # Palette & fonts
@@ -244,6 +265,78 @@ def browse_output():
 ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_output)\
     .grid(row=2, column=2, padx=(8, 10), pady=6, sticky="w")
 
+# =========================
+# Nhật ký dò miền Nam
+# =========================
+nhat_ky_nam_label = tk.Label(card, text="Nhật ký dò miền Nam", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+nhat_ky_nam_label.grid(row=3, column=0, padx=(10, 10), pady=6, sticky="e")
+
+nhat_ky_nam_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
+nhat_ky_nam_entry.grid(row=3, column=1, padx=6, pady=6, sticky="ew")
+nhat_ky_nam_entry.insert(0, last.get("nhat_ky_nam_path", ""))
+
+nhat_ky_nam_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
+nhat_ky_nam_hint.grid(row=3, column=3, padx=(6, 8), sticky="w")
+update_path_hint(nhat_ky_nam_hint, nhat_ky_nam_entry.get(), "file")
+
+def browse_nhat_ky_nam():
+    path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if path:
+        nhat_ky_nam_entry.delete(0, tk.END)
+        nhat_ky_nam_entry.insert(0, path)
+        update_path_hint(nhat_ky_nam_hint, path, "file")
+
+ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_nhat_ky_nam)\
+    .grid(row=3, column=2, padx=(8, 10), pady=6, sticky="w")
+
+# =========================
+# Nhật ký dò miền Bắc
+# =========================
+nhat_ky_bac_label = tk.Label(card, text="Nhật ký dò miền Bắc", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+nhat_ky_bac_label.grid(row=4, column=0, padx=(10, 10), pady=6, sticky="e")
+
+nhat_ky_bac_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
+nhat_ky_bac_entry.grid(row=4, column=1, padx=6, pady=6, sticky="ew")
+nhat_ky_bac_entry.insert(0, last.get("nhat_ky_bac_path", ""))
+
+nhat_ky_bac_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
+nhat_ky_bac_hint.grid(row=4, column=3, padx=(6, 8), sticky="w")
+update_path_hint(nhat_ky_bac_hint, nhat_ky_bac_entry.get(), "file")
+
+def browse_nhat_ky_bac():
+    path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if path:
+        nhat_ky_bac_entry.delete(0, tk.END)
+        nhat_ky_bac_entry.insert(0, path)
+        update_path_hint(nhat_ky_bac_hint, path, "file")
+
+ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_nhat_ky_bac)\
+    .grid(row=4, column=2, padx=(8, 10), pady=6, sticky="w")
+
+# =========================
+# Thông tin gói xét nghiệm
+# =========================
+goi_xn_label = tk.Label(card, text="Gói xét nghiệm", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+goi_xn_label.grid(row=5, column=0, padx=(10, 10), pady=6, sticky="e")
+
+goi_xn_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
+goi_xn_entry.grid(row=5, column=1, padx=6, pady=6, sticky="ew")
+goi_xn_entry.insert(0, last.get("goi_xn_path", ""))
+
+goi_xn_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
+goi_xn_hint.grid(row=5, column=3, padx=(6, 8), sticky="w")
+update_path_hint(goi_xn_hint, goi_xn_entry.get(), "file")
+
+def browse_goi_xn():
+    path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if path:
+        goi_xn_entry.delete(0, tk.END)
+        goi_xn_entry.insert(0, path)
+        update_path_hint(goi_xn_hint, path, "file")
+
+ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_goi_xn)\
+    .grid(row=5, column=2, padx=(8, 10), pady=6, sticky="w")
+
 # =========================================================
 # Progress
 # =========================================================
@@ -251,7 +344,7 @@ progress_var = tk.DoubleVar(value=0)
 progress_start_time = 0.0
 
 progress_frame = tk.Frame(card, bg=CARD_BG)
-progress_frame.grid(row=3, column=0, columnspan=4, pady=(16, 4))
+progress_frame.grid(row=6, column=0, columnspan=4, pady=(16, 4))
 
 progress_bar = ttk.Progressbar(progress_frame, variable=progress_var, maximum=100, length=460, style="Success.Horizontal.TProgressbar")
 progress_bar.pack(side="left", padx=(0, 10))
@@ -286,14 +379,14 @@ def open_output_folder():
         messagebox.showwarning("Warning", "Destination folder không tồn tại!")
 
 btn_open_folder = ttk.Button(card, text="Open Destination Folder", style="Accent.TButton", command=open_output_folder)
-btn_open_folder.grid(row=6, column=0, columnspan=4, pady=(10, 0))
+btn_open_folder.grid(row=9, column=0, columnspan=4, pady=(10, 0))
 btn_open_folder.grid_remove()
 
 # =========================================================
 # Run
 # =========================================================
 btn_frame = tk.Frame(card, bg=CARD_BG)
-btn_frame.grid(row=5, column=0, columnspan=4, pady=(10, 0))
+btn_frame.grid(row=8, column=0, columnspan=4, pady=(10, 0))
 
 btn_run = ttk.Button(btn_frame, text="Run", style="Accent.TButton", width=16)
 btn_run.pack(side="left", padx=14, pady=4)
@@ -315,6 +408,19 @@ def validate_paths():
 
     if not os.path.isdir(out):
         return False, "Destination phải là folder."
+
+    nhat_ky_nam = nhat_ky_nam_entry.get().strip()
+    if nhat_ky_nam and not os.path.isfile(nhat_ky_nam):
+        return False, "File Nhật ký dò miền Nam không tồn tại."
+
+    nhat_ky_bac = nhat_ky_bac_entry.get().strip()
+    if nhat_ky_bac and not os.path.isfile(nhat_ky_bac):
+        return False, "File Nhật ký dò miền Bắc không tồn tại."
+
+    goi_xn = goi_xn_entry.get().strip()
+    if goi_xn and not os.path.isfile(goi_xn):
+        return False, "File Gói xét nghiệm không tồn tại."
+
     return True, ""
 
 def on_run():
@@ -325,9 +431,12 @@ def on_run():
 
     # Save last paths
     data = {
-        "source_mode": mode_var.get(),
-        "source_path": source_entry.get().strip(),
-        "output_path": output_entry.get().strip()
+        "source_mode":      mode_var.get(),
+        "source_path":      source_entry.get().strip(),
+        "output_path":      output_entry.get().strip(),
+        "nhat_ky_nam_path": nhat_ky_nam_entry.get().strip(),
+        "nhat_ky_bac_path": nhat_ky_bac_entry.get().strip(),
+        "goi_xn_path":      goi_xn_entry.get().strip(),
     }
     save_last_paths(data)
 
@@ -345,14 +454,15 @@ def on_run():
                 root.after(0, ui_set_progress, p)
                 time.sleep(0.02)
 
-            # ✅ Run backend thật (hàm run_backend mới của bạn)
-            result = run_backend(
-                data["source_mode"],
-                data["source_path"],
-                data["output_path"]   # đây là des_path (folder destination)
+            result = run_sample_import(
+                source_mode=data["source_mode"],
+                source_path=data["source_path"],
+                output_path=data["output_path"],
+                nhat_ky_nam_path=data.get("nhat_ky_nam_path", ""),
+                nhat_ky_bac_path=data.get("nhat_ky_bac_path", ""),
+                goi_xn_path=data.get("goi_xn_path", ""),
             )
 
-            # ✅ Tạo msg_done ở đây
             if isinstance(result, list):
                 msg_done = f"Hoàn tất! Đã xuất {len(result)} file.\nFolder: {data['output_path']}"
             else:
