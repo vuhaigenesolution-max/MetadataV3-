@@ -1,8 +1,16 @@
 {
-  "source_mode": "file",
-  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Source/metadata_R9827_20260413.xlsx",
+  "source_mode": "folder",
+  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Source",
   "output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
-  "nhat_ky_path": "C:/Users/VUDUCHAI/Downloads/Nhật kí dò metadata.xlsx",
+  "nhat_ky_nam_path": "C:/Users/VUDUCHAI/Downloads/Nhật kí dò metadata.xlsx",
+  "nhat_ky_bac_path": "C:/Users/VUDUCHAI/Downloads/SEQ Track.xlsx",
   "goi_xn_path": "C:/Users/VUDUCHAI/Downloads/Thông tin tên gói xét nghiệm.xlsx",
-  "vung": "Nam"
+  "template_path": "C:/Users/VUDUCHAI/Downloads/metadata_TEMPLATE_YYYYMMDD1.xlsx",
+  "last_collision_per_file": {
+    "metadata_R9794_20260408.xlsx": 0,
+    "metadata_R9847_20260415.xlsx": 0
+  },
+  "last_error_files": [],
+  "t7_primer_path": "C:/Users/VUDUCHAI/Downloads/DANH SACH PRIMER KHONG DUNG TREN T7.xlsx",
+  "t7_folder_override": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST"
 }

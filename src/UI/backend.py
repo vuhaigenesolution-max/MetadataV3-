@@ -48,24 +48,33 @@ def run_sample_import(source_mode, source_path, output_path,
         if progress_callback:
             progress_callback(i, total)
 
+    j_report_path    = None
+    desc_report_path = None
+
     if all_j_errors:
         df_j_report = pd.concat(all_j_errors, ignore_index=True)
-        print(f"\n⚠ Cảnh báo cột J / Sample Project trống:")
-        print(df_j_report.to_string(index=False))
+        j_report_path = os.path.join(output_path, "warning_col_J_SampleProject.xlsx")
+        df_j_report.to_excel(j_report_path, index=False)
+        print(f"\n⚠ Cảnh báo cột J / Sample Project trống → {j_report_path}")
     else:
+        df_j_report = pd.DataFrame()
         print("\n✓ Không có cảnh báo cột J / Sample Project trống.")
 
     if all_desc_errors:
         df_desc_report = pd.concat(all_desc_errors, ignore_index=True)
-        print(f"\n⚠ Description lệch bảng labcode:")
-        print(df_desc_report.to_string(index=False))
+        desc_report_path = os.path.join(output_path, "warning_description.xlsx")
+        df_desc_report.to_excel(desc_report_path, index=False)
+        print(f"\n⚠ Description lệch bảng labcode → {desc_report_path}")
     else:
+        df_desc_report = pd.DataFrame()
         print("\n✓ Tất cả Description khớp bảng labcode.")
 
     return {
-        "file_results":    results,
-        "j_error_report":  pd.concat(all_j_errors,    ignore_index=True) if all_j_errors    else pd.DataFrame(),
-        "desc_error_report": pd.concat(all_desc_errors, ignore_index=True) if all_desc_errors else pd.DataFrame(),
+        "file_results":       results,
+        "j_error_report":     df_j_report,
+        "j_report_path":      j_report_path,
+        "desc_error_report":  df_desc_report,
+        "desc_report_path":   desc_report_path,
     }
 
 

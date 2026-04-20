@@ -10,8 +10,16 @@ Luồng chính:
   2. Xác định dòng cuối dữ liệu theo cột A của sheet Sample
   3. Đọc values-only (không formula) từ SampleImport và Aviti Manifest
   4. Làm sạch: replace 0 → ""
-  5. Map test-type (cột K của SampleImport) theo file template
-  6. Xuất 2 file CSV
+  5. Chuẩn hoá test-type cột K (tsprocare→TSPRO, tsthalass→TS3, ts9.5→TS95, còn lại→UPPERCASE)
+  6. Auto-detect vùng từ runname (R→Nam, P→Bắc) → kiểm tra theo vùng:
+       Vùng Nam : cột J không được trống nếu kit là T7/MGI (tra từ Nhật ký dò miền Nam)
+       Vùng Bắc : cột Sample Project không được trống nếu Sequencer chứa G99 (tra từ Nhật ký dò miền Bắc)
+       → Trả về DataFrame j_errors (File, Runname, Kit/Sequencer, SampleID, ColJ/SampleProject)
+  7. Kiểm tra cột Description so với bảng gói xét nghiệm (goi_xn_path)
+       → Trả về DataFrame desc_errors (File, SampleID, SamplePlate, Description, Description check)
+  8. Xuất 2 file CSV
+  ※ Việc gom và xuất file cảnh báo Excel (warning_col_J_SampleProject.xlsx,
+     warning_description.xlsx) được thực hiện ở tầng backend sau khi xử lý tất cả file.
 """
 
 import os
@@ -19,6 +27,7 @@ import re
 import logging
 import pandas as pd
 from openpyxl import load_workbook
+from Logic.CheckDescription import load_labcode_lookup
 
 log = logging.getLogger(__name__)
 
@@ -252,7 +261,6 @@ def _check_description_mismatch(source_path: str, fname: str, goi_xn_path: str) 
         return pd.DataFrame()
 
     try:
-        from Logic.CheckDescription import load_labcode_lookup
         lookup = load_labcode_lookup(goi_xn_path)
 
         # skiprows = IMPORT_HEADER_ROW - 1 = 22 → dòng 23 thành header
@@ -303,78 +311,11 @@ def _check_description_mismatch(source_path: str, fname: str, goi_xn_path: str) 
 
 
 def _map_test_type(val) -> str:
-    """
-    Chuẩn hoá giá trị test-type:
-      tsprocare → TSPRO
-      tsthalass → TS3
-      ts9.5     → TS95
-      còn lại   → UPPERCASE
-    """
+    """Chuẩn hoá test-type: tsprocare→TSPRO, tsthalass→TS3, ts9.5→TS95, còn lại→UPPERCASE."""
     if pd.isna(val) or str(val).strip() == "":
         return val
     key = str(val).strip().lower()
     return TEST_TYPE_MAP.get(key, str(val).strip().upper())
-
-
-def _apply_template_mapping(df_import: pd.DataFrame,
-                             template_path: str) -> pd.DataFrame:
-    """
-    Map cột K (test-type) của SampleImport theo file template.
-
-    Điều kiện ghép:
-      - Cột A của df_import == (col C của template) + "-" + (col D của template)
-      - Cột C của df_import khớp với cột C của template
-
-    Khi điều kiện thoả → chuẩn hoá giá trị cột K theo TEST_TYPE_MAP.
-    Nếu không có template hoặc không match → vẫn uppercase cột K.
-    """
-    if not os.path.isfile(template_path):
-        log.warning(f"Template mapping không tìm thấy: {template_path} — bỏ qua mapping")
-        # Vẫn chuẩn hoá uppercase
-        if "K" in df_import.columns:
-            df_import = df_import.copy()
-            df_import["K"] = df_import["K"].apply(_map_test_type)
-        return df_import
-
-    # Đọc template (lấy sheet đầu tiên, header ở dòng 1)
-    df_tmpl = pd.read_excel(template_path, header=0, dtype=str)
-    df_tmpl = df_tmpl.fillna("")
-
-    # Cột template dùng để tạo key ghép: col C + "-" + col D (index 2, 3)
-    tmpl_cols = df_tmpl.columns.tolist()
-    if len(tmpl_cols) < 4:
-        log.warning("Template mapping không đủ 4 cột — bỏ qua mapping")
-        if "K" in df_import.columns:
-            df_import = df_import.copy()
-            df_import["K"] = df_import["K"].apply(_map_test_type)
-        return df_import
-
-    col_c_tmpl = tmpl_cols[2]   # cột thứ 3 (index 2)
-    col_d_tmpl = tmpl_cols[3]   # cột thứ 4 (index 3)
-
-    # Tạo key ghép trong template: "C-D"
-    df_tmpl["_join_key"] = (
-        df_tmpl[col_c_tmpl].str.strip() + "-" + df_tmpl[col_d_tmpl].str.strip()
-    )
-
-    # Tạo set key hợp lệ để tra nhanh
-    valid_keys = set(df_tmpl["_join_key"].str.lower())
-
-    df_import = df_import.copy()
-
-    if "K" not in df_import.columns:
-        log.warning("Không tìm thấy cột K trong SampleImport — bỏ qua mapping")
-        return df_import
-
-    def _map_row(row):
-        col_a = str(row.get("A", "")).strip().lower()
-        # TODO: bổ sung điều kiện "cột C match" khi có thêm thông tin cột C cần khớp
-        if col_a in valid_keys:
-            return _map_test_type(row["K"])
-        return _map_test_type(row["K"])   # fallback: vẫn chuẩn hoá
-
-    df_import["K"] = df_import.apply(_map_row, axis=1)
-    return df_import
 
 
 
@@ -384,7 +325,6 @@ def _apply_template_mapping(df_import: pd.DataFrame,
 
 def process_sample_import(source_path: str,
                            output_folder: str,
-                           template_path: str = "",
                            nhat_ky_nam_path: str = "",
                            nhat_ky_bac_path: str = "",
                            goi_xn_path: str = "") -> dict:
@@ -398,7 +338,6 @@ def process_sample_import(source_path: str,
     Args:
         source_path      : đường dẫn file Excel đầu vào
         output_folder    : thư mục lưu 2 file CSV output
-        template_path    : đường dẫn file template mapping (tuỳ chọn)
         nhat_ky_nam_path : đường dẫn file Nhật ký dò miền Nam (tuỳ chọn)
         nhat_ky_bac_path : đường dẫn file Nhật ký dò miền Bắc (tuỳ chọn)
         goi_xn_path      : đường dẫn file Thông tin gói xét nghiệm (tuỳ chọn)
@@ -406,9 +345,6 @@ def process_sample_import(source_path: str,
     Returns:
         dict với keys "csv_import" và "csv_aviti" là đường dẫn file đã xuất.
     """
-    # Nếu goi_xn_path được truyền và template_path chưa có → dùng goi_xn_path làm template
-    if goi_xn_path and not template_path:
-        template_path = goi_xn_path
     os.makedirs(output_folder, exist_ok=True)
 
     fname   = os.path.basename(source_path)
@@ -491,9 +427,10 @@ def process_sample_import(source_path: str,
     df_import = _clean_zeros(df_import)
     df_aviti  = _clean_zeros(df_aviti)
 
-    # ── 7. Map test-type (cột K) theo template ─────────────
-    if df_import is not None and not df_import.empty:
-        df_import = _apply_template_mapping(df_import, template_path)
+    # ── 7. Chuẩn hoá test-type cột K ─────────────────────────
+    if not df_import.empty and "K" in df_import.columns:
+        df_import = df_import.copy()
+        df_import["K"] = df_import["K"].apply(_map_test_type)
 
     # ── 8. Kiểm tra theo vùng (auto-detected) ────────────
     if vung == "Nam":

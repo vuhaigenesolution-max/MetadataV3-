@@ -32,14 +32,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from collections import defaultdict
 
-# ── Logger ────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-7s  %(message)s",
-    datefmt="%H:%M:%S",
-)
 log = logging.getLogger(__name__)
-# ──────────────────────────────────────────────────────────
 
 # ── Cấu hình đọc file nguồn ───────────────────────────────
 SHEET_SRC  = "Sample"
@@ -278,21 +271,19 @@ def _build_index_seq(wb):
     return index_seq
 
 
-def _detect_and_mark_collisions(wb, df, import_start_row: int) -> int:
+def _detect_and_mark_collisions(wb, df, import_start_row: int, index_seq: dict) -> int:
     """
-    Phát hiện collision trong SampleImport bằng cách tra cứu sequence trực tiếp
-    từ các sheet 'Index Sets' và 'Index Sequence' trong template (không cần Excel tính formula).
+    Phát hiện collision trong SampleImport bằng cách tra cứu sequence trực tiếp.
 
     Collision khi: diff(G_seq) < 3 VÀ diff(I_seq) < 3.
 
     Kết quả:
       - Highlight màu vàng cột G (7) và I (9) của các dòng collision.
-      - Ghi log tại Q23 (header) và Q24+ (data: F, G, H, I của từng cặp).
+      - Ghi log tại Q24+ (data: T, k_code, G_seq, l_code, I_seq).
     """
     if IMPORT_SHEET_NAME not in wb.sheetnames:
         return 0
 
-    index_seq = _build_index_seq(wb)
     if not index_seq:
         return 0
 
@@ -391,15 +382,13 @@ def _paste_to_template(df, template_path, out_path, sheet_name):
         # Xóa các dòng thừa trong template
         first_extra = IMPORT_START_ROW + num_rows
         if ws_import.max_row >= first_extra:
-            for r in range(first_extra, ws_import.max_row + 1):
-                for col in range(1, ws_import.max_column + 1):
-                    ws_import.cell(row=r, column=col).value = None
+            ws_import.delete_rows(first_extra, ws_import.max_row - first_extra + 1)
             log.info(f"  → Xóa dòng thừa SampleImport: dòng {first_extra}–{ws_import.max_row}")
     else:
         log.warning(f"Không tìm thấy sheet '{IMPORT_SHEET_NAME}' trong template — bỏ qua")
 
     # ── Sheet SampleImport: phát hiện & đánh dấu collision ─
-    collision_count = _detect_and_mark_collisions(wb, df, IMPORT_START_ROW)
+    collision_count = _detect_and_mark_collisions(wb, df, IMPORT_START_ROW, index_seq)
 
     # ── Sheet Aviti Manifest: ghi values ─────────────────
     if AVITI_SHEET_NAME in wb.sheetnames:

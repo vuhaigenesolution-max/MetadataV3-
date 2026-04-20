@@ -7,10 +7,15 @@ NIPT_PACKAGES = {"TS1", "TS3", "TS95", "TS24", "TSPRO"}
 
 
 def load_labcode_lookup(labcode_file: str) -> dict:
-    xl = pd.ExcelFile(labcode_file)
+    try:
+        xl = pd.ExcelFile(labcode_file)
+    except Exception as e:
+        raise ValueError(f"Không mở được file gói xét nghiệm: {e}")
     lookup = {}
     for sheet in xl.sheet_names:
         df = xl.parse(sheet, skiprows=1, header=0)
+        if df.shape[1] < 3:
+            continue
         col_labcode, col_so_x, *cols_goi = df.columns
 
         df_melt = df.melt(
@@ -48,7 +53,7 @@ def _get_nhom_xn(prefix: str) -> str:
 
 
 def _extract_runname(filename: str) -> str:
-    m = re.search(r'_(R\d+)_', filename)
+    m = re.search(r'_([RP]\d+)_', filename, re.IGNORECASE)
     return m.group(1) if m else ""
 
 
