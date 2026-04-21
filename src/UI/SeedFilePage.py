@@ -8,12 +8,15 @@ from tkinter import filedialog, messagebox, ttk
 
 
 # ============= IMPORT BACKEND =============
-from backend import run_backend
+from backend import run_seed_file
 
 def go_home():
     try:
+        home_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "HomePage.py")
+        import subprocess
+        kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        subprocess.Popen([sys.executable, home_path], **kwargs)
         root.destroy()
-        os.startfile("HomePage.py")
     except Exception as e:
         messagebox.showerror("Error", f"Không mở được HomePage.py\n{e}")
 
@@ -32,6 +35,7 @@ CONFIG_PATH = os.path.join(get_exe_dir(), "last_paths.json")
 DEFAULT_LAST = {
     "source_mode": "file",
     "source_path": "",
+    "template_path": "",
     "output_path": ""
 }
 
@@ -40,7 +44,6 @@ def load_last_paths():
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # merge key mặc định
             for k, v in DEFAULT_LAST.items():
                 data.setdefault(k, v)
             return data
@@ -49,23 +52,12 @@ def load_last_paths():
     return DEFAULT_LAST.copy()
 
 def save_last_paths(data: dict):
-    # đảm bảo folder tồn tại (thường folder exe đã tồn tại)
+    existing = load_last_paths()
+    existing.update(data)
     folder = os.path.dirname(CONFIG_PATH)
     os.makedirs(folder, exist_ok=True)
-
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-
-# =========================================================
-# Backend runner (không template)
-# =========================================================
-def run_backend_ui(source_mode, source_path, des_path):
-    result = run_backend(source_mode, source_path, des_path)
-    if isinstance(result, list):
-        return {"mode": "folder", "count": len(result), "files": result, "output": des_path}
-    return {"mode": "file", "count": 1, "files": [result], "output": des_path}
+        json.dump(existing, f, ensure_ascii=False, indent=2)
 
 
 
@@ -244,6 +236,30 @@ def browse_output():
 ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_output)\
     .grid(row=2, column=2, padx=(8, 10), pady=6, sticky="w")
 
+# =========================
+# Template row
+# =========================
+template_label = tk.Label(card, text="Template", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+template_label.grid(row=3, column=0, padx=(10, 10), pady=6, sticky="e")
+
+template_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
+template_entry.grid(row=3, column=1, padx=6, pady=6, sticky="ew")
+template_entry.insert(0, last.get("template_path", ""))
+
+template_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
+template_hint.grid(row=3, column=3, padx=(6, 8), sticky="w")
+update_path_hint(template_hint, template_entry.get(), "file")
+
+def browse_template():
+    path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if path:
+        template_entry.delete(0, tk.END)
+        template_entry.insert(0, path)
+        update_path_hint(template_hint, path, "file")
+
+ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_template)\
+    .grid(row=3, column=2, padx=(8, 10), pady=6, sticky="w")
+
 # =========================================================
 # Progress
 # =========================================================
@@ -251,7 +267,7 @@ progress_var = tk.DoubleVar(value=0)
 progress_start_time = 0.0
 
 progress_frame = tk.Frame(card, bg=CARD_BG)
-progress_frame.grid(row=3, column=0, columnspan=4, pady=(16, 4))
+progress_frame.grid(row=4, column=0, columnspan=4, pady=(16, 4))
 
 progress_bar = ttk.Progressbar(progress_frame, variable=progress_var, maximum=100, length=460, style="Success.Horizontal.TProgressbar")
 progress_bar.pack(side="left", padx=(0, 10))
@@ -300,11 +316,12 @@ btn_run.pack(side="left", padx=14, pady=4)
 
 def validate_paths():
     mode = mode_var.get()
-    src = source_entry.get().strip()
-    out = output_entry.get().strip()
+    src  = source_entry.get().strip()
+    tmpl = template_entry.get().strip()
+    out  = output_entry.get().strip()
 
-    if not src or not out:
-        return False, "Vui lòng chọn đủ Source và Destination."
+    if not src or not tmpl or not out:
+        return False, "Vui lòng chọn đủ Source, Template và Destination."
 
     if mode == "file":
         if not os.path.isfile(src):
@@ -312,6 +329,9 @@ def validate_paths():
     else:
         if not os.path.isdir(src):
             return False, "Source mode=Folder nhưng Source không phải folder."
+
+    if not os.path.isfile(tmpl):
+        return False, "Template phải là file Excel (.xlsx / .xls)."
 
     if not os.path.isdir(out):
         return False, "Destination phải là folder."
@@ -323,11 +343,11 @@ def on_run():
         messagebox.showerror("Error", msg)
         return
 
-    # Save last paths
     data = {
-        "source_mode": mode_var.get(),
-        "source_path": source_entry.get().strip(),
-        "output_path": output_entry.get().strip()
+        "source_mode":   mode_var.get(),
+        "source_path":   source_entry.get().strip(),
+        "template_path": template_entry.get().strip(),
+        "output_path":   output_entry.get().strip(),
     }
     save_last_paths(data)
 
@@ -340,27 +360,21 @@ def on_run():
         progress_start_time = time.time()
 
         try:
-            # Progress giả lập lên 95% trong lúc chạy
-            for p in range(0, 96):
-                root.after(0, ui_set_progress, p)
-                time.sleep(0.02)
+            def on_progress(current, total):
+                pct = int(current / total * 100) if total else 100
+                root.after(0, ui_set_progress, pct)
 
-            # ✅ Run backend thật (hàm run_backend mới của bạn)
-            result = run_backend(
+            result = run_seed_file(
                 data["source_mode"],
                 data["source_path"],
-                data["output_path"]   # đây là des_path (folder destination)
+                data["template_path"],
+                data["output_path"],
+                progress_callback=on_progress,
             )
 
-            # ✅ Tạo msg_done ở đây
-            if isinstance(result, list):
-                msg_done = f"Hoàn tất! Đã xuất {len(result)} file.\nFolder: {data['output_path']}"
-            else:
-                msg_done = f"Hoàn tất! File: {result}"
-
-            # Done
+            msg_done = f"Hoàn tất! Đã xuất {len(result)} file CSV.\nFolder: {data['output_path']}"
             root.after(0, ui_set_progress, 100)
-            root.after(0, btn_open_folder.grid)  # show open folder button
+            root.after(0, btn_open_folder.grid)
             root.after(0, lambda: messagebox.showinfo("Success", msg_done))
 
         except Exception as e:
@@ -368,7 +382,6 @@ def on_run():
             root.after(0, ui_set_progress, 0)
         finally:
             root.after(0, lambda: disable_buttons(False))
-
 
     threading.Thread(target=worker, daemon=True).start()
 

@@ -78,12 +78,12 @@ def load_last_paths():
     return DEFAULT_LAST.copy()
 
 def save_last_paths(data: dict):
-    # đảm bảo folder tồn tại (thường folder exe đã tồn tại)
+    existing = load_last_paths()
+    existing.update(data)
     folder = os.path.dirname(CONFIG_PATH)
     os.makedirs(folder, exist_ok=True)
-
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(existing, f, ensure_ascii=False, indent=2)
 
 
 

@@ -437,7 +437,8 @@ btn_run.config(command=on_run)
 def _open_primer_t7():
     try:
         t7_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "primreT7.py")
-        os.startfile(t7_path)
+        kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        subprocess.Popen([sys.executable, t7_path], **kwargs)
     except Exception as e:
         messagebox.showerror("Error", f"Không mở được primreT7.py\n{e}")
 
