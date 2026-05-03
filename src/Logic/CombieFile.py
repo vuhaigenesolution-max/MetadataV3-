@@ -188,9 +188,12 @@ def _validate_df(df, output_folder, runname, date):
     """
     Kiểm tra cột A,B,C,T trong df.
     Nếu có lỗi → xuất file error_<runname>_<date>.xlsx vào output_folder.
+    Mỗi dòng output = 1 dòng nguồn có lỗi, in đủ 4 cột A B C T,
+    tô vàng ô bị lỗi, cột "Loại lỗi" mô tả chi tiết từng cột bị sai.
     Trả về đường dẫn file lỗi (hoặc None nếu không có lỗi).
     """
-    error_rows = []
+    # { row_index_in_df : { col: [errs] } }
+    row_errors: dict = {}
     for col in VALIDATE_COLS:
         if col not in df.columns:
             continue
@@ -199,21 +202,46 @@ def _validate_df(df, output_folder, runname, date):
                 continue
             errs = _check_cell(val)
             if errs:
-                error_rows.append({
-                    "Cột":          col,
-                    "Dòng Excel":   START_ROW + i,
-                    "Giá trị":      val,
-                    "Loại lỗi":     ", ".join(errs),
-                })
+                row_errors.setdefault(i, {})[col] = errs
 
-    if not error_rows:
+    if not row_errors:
         return None
 
-    df_err = pd.DataFrame(error_rows)
+    out_cols = ["Dòng Excel", "A", "B", "C", "T", "Loại lỗi"]
+    records = []
+    for i in sorted(row_errors):
+        row = df.iloc[i]
+        err_desc = "; ".join(
+            f"{c}: {', '.join(errs)}"
+            for c, errs in sorted(row_errors[i].items())
+        )
+        records.append({
+            "Dòng Excel": START_ROW + i,
+            "A": row.get("A", ""),
+            "B": row.get("B", ""),
+            "C": row.get("C", ""),
+            "T": row.get("T", ""),
+            "Loại lỗi": err_desc,
+        })
+
+    df_err = pd.DataFrame(records, columns=out_cols)
     err_name = f"error_{runname}_{date}.xlsx"
     err_path = os.path.join(output_folder, err_name)
     df_err.to_excel(err_path, index=False)
-    log.warning(f"  ⚠ Phát hiện {len(error_rows)} ô lỗi → {err_name}")
+
+    # Tô vàng ô bị lỗi
+    yellow = PatternFill(fill_type="solid", fgColor="FFFF00")
+    # mapping tên cột → số cột Excel (header ở row 1, data từ row 2)
+    col_letter_to_excel = {"A": 2, "B": 3, "C": 4, "T": 5}
+    wb = load_workbook(err_path)
+    ws = wb.active
+    for excel_data_row, i in enumerate(sorted(row_errors), start=2):
+        for col, _ in row_errors[i].items():
+            if col in col_letter_to_excel:
+                ws.cell(row=excel_data_row, column=col_letter_to_excel[col]).fill = yellow
+    wb.save(err_path)
+
+    log.warning(f"  ⚠ Phát hiện {len(row_errors)} dòng lỗi → {err_name}")
     return err_path
 
 

@@ -7,10 +7,23 @@
   "goi_xn_path": "C:/Users/VUDUCHAI/Downloads/Thông tin tên gói xét nghiệm.xlsx",
   "template_path": "C:/Users/VUDUCHAI/Downloads/metadata_TEMPLATE_YYYYMMDD1.xlsx",
   "last_collision_per_file": {
-    "metadata_R9794_20260408.xlsx": 0,
-    "metadata_R9847_20260415.xlsx": 0
+    "metadata_R4994_20240514.xlsx": 0,
+    "metadata_R4995_20240514.xlsx": 7,
+    "metadata_R4996_20240514.xlsx": 0,
+    "metadata_R4997_20240514.xlsx": 0,
+    "metadata_R4998_20240514.xlsx": 0,
+    "metadata_R4999_20240514.xlsx": 0,
+    "metadata_R5000_20240514.xlsx": 0,
+    "metadata_R5008_20240516.xlsx": 40,
+    "metadata_R9827_20260413.xlsx": 5
   },
-  "last_error_files": [],
+  "last_error_files": [
+    "error_R4994_20240514.xlsx",
+    "error_R4997_20240514.xlsx",
+    "error_R4998_20240514.xlsx",
+    "error_R4999_20240514.xlsx",
+    "error_R5000_20240514.xlsx"
+  ],
   "t7_primer_path": "C:/Users/VUDUCHAI/Downloads/DANH SACH PRIMER KHONG DUNG TREN T7.xlsx",
   "t7_folder_override": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST"
 }
