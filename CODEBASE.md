@@ -22,14 +22,15 @@ Metadata_Tool V3/
     │   ├── SeedfilePage.py         # Tạo barcode.csv từ 1 file Excel
     │   ├── Folder_SeedfilePage.py  # Xử lý batch nhiều file SeedFile
     │   ├── CheckDescription.py     # Kiểm tra cột Description
-    │   └── Primer_T7.py            # Kiểm tra primer trùng cột T7
+    │   ├── Primer_T7.py            # Kiểm tra primer trùng cột T7
+    │   └── Checksamplenumber.py    # Đối soát file SUM ↔ folder metadata
     └── UI/
         ├── __init__.py
         ├── backend.py              # Điều phối tất cả workflow Logic
         ├── HomePage.py             # Trang chủ — điều hướng
         ├── CombinePage.py          # GUI bước 1: Combine File
         ├── SampleImportPage.py     # GUI bước 2: Tạo SampleImport & Manifest
-        ├── SeedFilePage.py         # GUI: Tạo file mồi (barcode)
+        ├── SeedFilePage.py         # GUI: Check Sample Number (SUM ↔ metadata)
         └── primreT7.py             # GUI: Kiểm tra primer T7
 ```
 
@@ -46,6 +47,8 @@ Metadata_Tool V3/
 **Luồng xử lý**:
 1. Đọc từng file nguồn → trích xuất cột A–C, H–J, K–L, T (hàm `_read_source_file`)
 2. Kiểm tra ký tự đặc biệt / khoảng trắng thừa (hàm `_validate_df`)
+   - Bỏ qua giá trị kiểu số (int/float) — không flag số là lỗi
+   - File báo lỗi `error_<runname>_<date>.xlsx`: in đủ 4 cột A B C T, **tô vàng ô bị lỗi**, cột "Loại lỗi" mô tả chi tiết
 3. Nhóm các row theo `(runname, date)` → mỗi nhóm tạo 1 file đầu ra
 4. Sao chép template → dán dữ liệu vào sheet SampleImport (hàm `_paste_to_template`)
 5. So sánh chuỗi index trong cùng nhóm → tô vàng ô khác nhau < 3 ký tự, ghi log vào ô Q24+ (hàm `_detect_and_mark_collisions`)
@@ -66,16 +69,16 @@ Metadata_Tool V3/
 - `_check_sample_project_empty()`: Kiểm tra Sample Project cho máy G99 (miền Bắc)
 - `_check_description_mismatch()`: Đối chiếu cột Description với bảng labcode
 - `_map_test_type()`: Chuẩn hóa tên loại xét nghiệm (ví dụ: `tsprocare` → `TSPRO`)
-- `_compute_test_type()`: Suy ra loại xét nghiệm từ SampleID + mã xét nghiệm
+- `_read_header_row()` + `_rename_with_headers()`: Đọc header thật từ row 23 (SampleImport) / row 15 (Aviti) → CSV xuất ra có header thật thay vì A,B,C,...
 
 **Đầu ra**:
-- `SampleImport_<runname>.csv`
-- `<runname>_YYYYMMDD.csv` (Aviti Manifest)
+- `SampleImport_<runname>.csv` (cho cả Nam và Bắc)
+- `Manifest_<runname>_<yyyymmdd>.csv` (cho cả Nam và Bắc)
 - File báo lỗi nếu có sai sót
 
 ---
 
-### `SeedfilePage.py`
+### `SeedfilePage.py` *(Logic — riêng với UI)*
 
 **Mục đích**: Tạo file `barcode.csv` từ một file Excel nguồn duy nhất.
 
@@ -129,6 +132,42 @@ Metadata_Tool V3/
 
 ---
 
+### `Checksamplenumber.py`
+
+**Mục đích**: Đối soát file SUM (Pool Allocation, multi-page) với folder chứa file metadata. Phát hiện sample trong metadata chưa có trong SUM.
+
+**Hàm chính**:
+- `process_sum_file(sum_path, sheet)` → DataFrame 6 cột
+- `read_meta_folder(folder, sheet_name="Sample")` → DataFrame gộp metadata
+- `find_meta_only(df_meta, df_sum)` → DataFrame các dòng meta chưa match
+
+**Pipeline `process_sum_file`**:
+1. `parse_file_by_pages()` → đọc các page (mỗi page 20 cột + 2 cột trống), trim merged cells
+2. Lọc 3 cột `RunName, Col 3, Col 5`, drop dòng có ô trống
+3. **Clean Col 3**: bỏ phần `(...)` và content bên trong (vd `ABC(XYZ)` → `ABC`)
+4. Parse Col 5 → expand thành nhiều dòng:
+   - `1-48` → 48 dòng `sample_order = 1..48`
+   - `1-48/1, 44-46` → 48 dòng, đánh `Loại = "Loại"` cho số {1, 44, 45, 46}
+   - khác → 1 dòng giữ nguyên
+5. Phân loại Sample Type:
+   - `NIPT`: Col 3 prefix ∈ {E,T,B,H,L,V,P + số ; EK,TK,CR,CRH,GS + số ; PGS ; PGTM}
+   - `other`: còn lại
+
+**Pipeline `read_meta_folder`**:
+- Mỗi file `metadata_<R/P xxxx>_<yyyymmdd>.xlsx` trong folder:
+  - RunName = regex từ tên file (R hoặc P + 4-5 số)
+  - Header = Excel row 21, 4 cột A, B, U, V
+  - Data = Excel row 22+, cùng 4 cột
+- Concat tất cả thành 1 DataFrame, cột đầu = RunName
+
+**Logic `find_meta_only`** — match 1 dòng meta nếu thoả 1 trong 2:
+- **NIPT**: tồn tại df_sum có `Sample Type=NIPT` & `Loại=""` & cùng RunName & `Col 3 == expNum` & `sample_order == sampleOrder`
+- **other**: tồn tại df_sum có `Sample Type=other` & cùng RunName & `sample_order == sampleOrder` & `Col 3 ==` (Col_22 nếu khác rỗng, ngược lại Col_21)
+
+Output: 3 cột `RunName, expNum, sampleOrder` — các dòng meta KHÔNG match.
+
+---
+
 ## Lớp UI
 
 ### `backend.py`
@@ -139,10 +178,10 @@ Metadata_Tool V3/
 
 | Hàm | Gọi Logic | Mô tả |
 |-----|-----------|-------|
-| `run_backend()` | `CombieFile` | Chạy toàn bộ workflow Combine |
-| `run_sample_import()` | `SampleImport` | Batch xuất SampleImport, tổng hợp cảnh báo j_errors và desc_errors |
+| `run_backend()` | `CombieFile` + `Primer_T7` | Combine + auto T7 check |
+| `run_sample_import()` | `SampleImport` | Batch xuất SampleImport, tổng hợp cảnh báo j_errors / desc_errors |
 | `run_check_desc()` | `CheckDescription` | Kiểm tra Description |
-| `run_seed_file()` | `Folder_SeedfilePage` | Batch tạo barcode CSV |
+| `run_check_sample_number()` | `Checksamplenumber` | Đối soát SUM ↔ metadata folder |
 
 ---
 
@@ -153,7 +192,7 @@ Metadata_Tool V3/
 **Giao diện**: 3 nút điều hướng trên nền tối (accent `#00c4a7`):
 - **Combine File** → `CombinePage`
 - **Tạo file SampleImport & Manifest** → `SampleImportPage`
-- **Tạo file mồi** → `SeedFilePage`
+- **Check Sample Import** → `SeedFilePage`
 
 ---
 
@@ -166,7 +205,7 @@ Metadata_Tool V3/
 - Tự động lưu config (đường dẫn, kết quả collision) vào file JSON
 - Sau khi hoàn thành tự động mở cửa sổ `primreT7` để kiểm tra T7
 
-**Persistence**: Lưu đường dẫn vào `last_paths.json`
+**Persistence**: Lưu đường dẫn vào `last_paths.json` — keys: `source_mode`, `source_path`, `template_path`, `output_path`
 
 ---
 
@@ -175,27 +214,37 @@ Metadata_Tool V3/
 **Mục đích**: GUI bước 2 — xuất SampleImport CSV và Aviti Manifest.
 
 **Input fields**:
-- File/thư mục nguồn (metadata Excel đầu ra của Combine)
-- Thư mục đích
+- File/thư mục nguồn (metadata Excel — auto-fill từ `output_path` của Combine khi chưa chọn riêng)
+- Thư mục đích (riêng biệt)
 - Nhật ký dò miền Nam *(tùy chọn)*
 - Nhật ký dò miền Bắc *(tùy chọn)*
 - File gói xét nghiệm / Labcode *(tùy chọn)*
 
-**Tính năng**: Hiển thị cửa sổ kết quả tóm tắt sau khi hoàn thành; validate các file tùy chọn trước khi thực thi.
+**Persistence**: Dùng key namespace riêng (`sample_source_mode`, `sample_source_path`, `sample_output_path`) để không đè lên config của CombinePage.
+
+**Tính năng**:
+- Progress bar **thực tế** theo số file (không còn fake animation)
+- Popup tổng kết hiển thị: số file CSV đã xuất + đường dẫn warning files (cột J / Description)
 
 ---
 
-### `SeedFilePage.py`
+### `SeedFilePage.py` *(đã repurpose: Check Sample Number)*
 
-**Mục đích**: GUI tạo file barcode CSV từ file Excel mồi.
+**Mục đích**: GUI đối soát file SUM với folder metadata.
 
-**Input fields**:
-- Chế độ: File đơn hoặc Thư mục
-- Đường dẫn template
-- Thư mục đầu ra
-- Thanh tiến trình + hiển thị thời gian đã chạy
+**Input fields** (3 row):
+1. **Source Metadata**: folder chứa nhiều file metadata
+2. **File Sum**: file SUM Excel
+3. **Destination**: folder đầu ra
 
-**Persistence**: Lưu đường dẫn vào `last_paths.json`
+**Backend**: gọi `run_check_sample_number(meta_folder, sum_file, output_folder)`
+
+**Output 3 file Excel**:
+- `metadata_combined.xlsx`: gộp tất cả metadata
+- `<sum_stem>_solution.xlsx`: SUM đã processed (RunName, Col 3, Col 5, sample_order, Loại, Sample Type)
+- `meta_only.xlsx`: 3 cột (RunName, expNum, sampleOrder) — sample có trong meta nhưng chưa có trong sum
+
+**Persistence**: Lưu vào `last_paths.json` — keys: `source_path`, `template_path` *(File Sum)*, `output_path`
 
 ---
 
@@ -221,40 +270,42 @@ Metadata_Tool V3/
 HomePage
      │
      ├──► CombinePage
-     │         │  chọn nhiều file Excel nguồn + template
+     │         │  chọn file/folder Excel nguồn + template
      │         ▼
      │    backend.run_backend()
-     │         │
-     │         ▼
-     │    CombieFile.process_combine_files()
-     │         │  → metadata_*.xlsx (theo nhóm run/date)
-     │         │  → collision log trong Q24+
-     │         ▼
-     │    primreT7 (tự động mở)
-     │         │  kiểm tra primer trùng cột T
-     │         ▼
-     │    Primer_T7.process_primer_t7()
-     │         │  → Primer_Check_Result.xlsx
+     │         ├─► CombieFile.process_combine_files()
+     │         │        → metadata_*.xlsx (theo nhóm run/date)
+     │         │        → tô vàng cell collision + log Q24+
+     │         │        → error_*.xlsx (tô vàng ô lỗi)
+     │         └─► Primer_T7.process_primer_t7() (auto chain)
+     │                  → Primer_Check_Result.xlsx
      │
      ├──► SampleImportPage
-     │         │  chọn metadata Excel + file tham chiếu miền Nam/Bắc
+     │         │  Source = output Combine (auto-fill)
+     │         │  + Destination riêng + ref miền Nam/Bắc + Labcode
      │         ▼
      │    backend.run_sample_import()
-     │         │
-     │         ▼
-     │    SampleImport.process_sample_import()
-     │         │  → SampleImport_*.csv
-     │         │  → *_YYYYMMDD.csv (Aviti Manifest)
-     │         │  → báo lỗi nếu thiếu dữ liệu
+     │         └─► SampleImport.process_sample_import()
+     │                  → SampleImport_<runname>.csv  (header thật)
+     │                  → Manifest_<runname>_<yyyymmdd>.csv
+     │                  → warning_col_J_SampleProject.xlsx (gộp toàn batch)
+     │                  → warning_description.xlsx (gộp toàn batch)
      │
-     └──► SeedFilePage
-               │  chọn file/thư mục Excel mồi + template
+     └──► SeedFilePage  *(Check Sample Number)*
+               │  Source Metadata (folder) + File Sum + Destination
                ▼
-          backend.run_seed_file()
-               │
-               ▼
-          Folder_SeedfilePage → SeedfilePage.process_excel()
-               │  → barcode.csv (mỗi file nguồn 1 CSV)
+          backend.run_check_sample_number()
+               ├─► Checksamplenumber.read_meta_folder()
+               │        → df_meta gộp (RunName + 4 cột A/B/U/V row 21+)
+               ├─► Checksamplenumber.process_sum_file()
+               │        → df_sum (clean Col 3, expand Col 5, classify NIPT/other)
+               └─► Checksamplenumber.find_meta_only()
+                        → df_meta_only (rows meta không match sum)
+               
+               Output 3 file Excel:
+                   metadata_combined.xlsx
+                   <sum_stem>_solution.xlsx
+                   meta_only.xlsx
 ```
 
 ---
@@ -263,13 +314,43 @@ HomePage
 
 | Thư viện | Dùng cho |
 |----------|----------|
-| `pandas` | Đọc, lọc, xử lý dữ liệu bảng |
-| `openpyxl` | Đọc/ghi Excel, tô màu ô, dán dữ liệu vào template |
+| `pandas` | Đọc, lọc, transform, explode, merge dữ liệu bảng |
+| `openpyxl` | Đọc/ghi Excel, tô màu ô, dán dữ liệu vào template, expand merged cells |
 | `tkinter` | Framework GUI desktop |
 | `threading` | Chạy Logic trên thread riêng, giữ UI không bị đơ |
 | `logging` | Ghi log nội bộ các module Logic |
-| `re` | Kiểm tra ký tự đặc biệt, chuẩn hóa chuỗi |
+| `re` | Regex: parse Col 5 range, classify NIPT, validate ký tự đặc biệt |
 | `json` | Lưu/đọc đường dẫn gần nhất (`last_paths.json`) |
+
+---
+
+## Workflow `Checksamplenumber` — chi tiết
+
+### File SUM input
+
+Multi-page Excel layout:
+- Mỗi page = **20 cột data + 2 cột trống** (STEP = 22)
+- Mỗi page có:
+  - Row 1 meta: A1=RunContent, E1=RunNameNotes, Q1=MachineNotes
+  - Row 4: header bảng (sẽ thay bằng `Col 1`..`Col 20`)
+  - Row 5+: data, trim theo cột C của page
+
+### File metadata input
+
+Filename: `metadata_<R/P xxxx>_<yyyymmdd>.xlsx`
+- RunName extract: regex `metadata_([RP]\d{4,5})_(\d{8})`
+- Sheet: `Sample`
+- Header: row 21, lấy 4 cột Excel A, B, U, V (KHÔNG phải tên cột — vị trí Excel)
+- Data: row 22 trở đi, cùng 4 cột
+
+### Match rules (find_meta_only)
+
+| df_sum row | Condition để được coi là "matched" với df_meta row |
+|---|---|
+| `Sample Type = NIPT, Loại = ""` | `RunName` cùng & `Col 3 == expNum` (col A) & `sample_order == sampleOrder` (col B) |
+| `Sample Type = other` | `RunName` cùng & `sample_order == sampleOrder` & `Col 3 ==` (Col_22 col V nếu khác rỗng, ngược lại Col_21 col U) |
+
+Comparison đã chuẩn hóa: `strip()` + bỏ `.0` đuôi (1 vs 1.0 coi như bằng).
 
 ---
 
@@ -277,7 +358,7 @@ HomePage
 
 | Hạng mục | Số lượng |
 |----------|----------|
-| File Python | 13 |
-| Module Logic | 6 |
+| File Python | 14 |
+| Module Logic | 7 |
 | Trang UI | 5 + 1 backend + 1 homepage |
-| Tổng dòng code | ~2,500 |
+| Tổng dòng code | ~3,000 |
