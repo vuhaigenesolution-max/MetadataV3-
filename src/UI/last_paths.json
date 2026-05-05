@@ -1,14 +1,14 @@
 {
   "source_mode": "folder",
-  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Source",
-  "output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
+  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Source Sum",
+  "output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum",
   "nhat_ky_nam_path": "C:/Users/VUDUCHAI/Downloads/Nhật kí dò metadata.xlsx",
   "nhat_ky_bac_path": "C:/Users/VUDUCHAI/Downloads/SEQ Track.xlsx",
   "goi_xn_path": "C:/Users/VUDUCHAI/Downloads/Thông tin tên gói xét nghiệm.xlsx",
-  "template_path": "C:/Users/VUDUCHAI/Downloads/metadata_TEMPLATE_YYYYMMDD1.xlsx",
+  "template_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum/SUM_20260420.xlsx",
   "last_collision_per_file": {
     "metadata_R4994_20240514.xlsx": 0,
-    "metadata_R4995_20240514.xlsx": 7,
+    "metadata_R4995_20240514.xlsx": 0,
     "metadata_R4996_20240514.xlsx": 0,
     "metadata_R4997_20240514.xlsx": 0,
     "metadata_R4998_20240514.xlsx": 0,
@@ -17,13 +17,10 @@
     "metadata_R5008_20240516.xlsx": 40,
     "metadata_R9827_20260413.xlsx": 5
   },
-  "last_error_files": [
-    "error_R4994_20240514.xlsx",
-    "error_R4997_20240514.xlsx",
-    "error_R4998_20240514.xlsx",
-    "error_R4999_20240514.xlsx",
-    "error_R5000_20240514.xlsx"
-  ],
+  "last_error_files": [],
   "t7_primer_path": "C:/Users/VUDUCHAI/Downloads/DANH SACH PRIMER KHONG DUNG TREN T7.xlsx",
-  "t7_folder_override": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST"
+  "t7_folder_override": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
+  "sample_source_mode": "folder",
+  "sample_source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
+  "sample_output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Tet sample import"
 }

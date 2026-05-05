@@ -108,6 +108,33 @@ def _excel_col_names(n: int) -> list[str]:
     return names
 
 
+def _read_header_row(wb, sheet_name: str, header_row: int) -> list[str]:
+    """Đọc dòng header → list tên cột thực tế (giữ thứ tự, ô trống = '')."""
+    if sheet_name not in wb.sheetnames:
+        return []
+    ws = wb[sheet_name]
+    headers = []
+    for cell in ws[header_row]:
+        v = cell.value
+        headers.append("" if v is None else str(v).strip())
+    return headers
+
+
+def _rename_with_headers(df: pd.DataFrame, headers: list[str]) -> pd.DataFrame:
+    """Đổi tên cột theo position: A→headers[0], B→headers[1]... Header rỗng giữ nguyên letter."""
+    if df.empty or not headers:
+        return df
+    new_names = []
+    for i, old in enumerate(df.columns):
+        if i < len(headers) and headers[i]:
+            new_names.append(headers[i])
+        else:
+            new_names.append(old)
+    df = df.copy()
+    df.columns = new_names
+    return df
+
+
 def _clean_zeros(df: pd.DataFrame) -> pd.DataFrame:
     """Thay thế các ô có giá trị 0 (hoặc "0") thành chuỗi rỗng ""."""
     return df.replace({0: "", "0": ""})
@@ -348,7 +375,6 @@ def process_sample_import(source_path: str,
     os.makedirs(output_folder, exist_ok=True)
 
     fname   = os.path.basename(source_path)
-    stem    = os.path.splitext(fname)[0]
     runname = _extract_runname(fname)
 
     m = FILE_PATTERN.search(fname)
@@ -421,6 +447,10 @@ def process_sample_import(source_path: str,
 
     # nhat_ky_path đã được gán khi auto-detect vùng ở trên
 
+    # ── 5c. Đọc header thực để xuất CSV với tên cột đúng ──
+    import_headers = _read_header_row(wb, SHEET_IMPORT, IMPORT_HEADER_ROW)
+    aviti_headers  = _read_header_row(wb, SHEET_AVITI,  AVITI_START_ROW - 1)
+
     wb.close()
 
     # ── 6. Làm sạch: 0 → "" ──────────────────────────────
@@ -449,16 +479,20 @@ def process_sample_import(source_path: str,
     if not df_desc_errors.empty:
         log.warning(f"  ⚠ Description lệch ({len(df_desc_errors)} dòng)")
 
-    # ── 10. Xuất Output 1: SampleImport CSV ───────────────
-    csv1_name = f"SampleImport_{stem}.csv"
+    # ── 10. Xuất Output 1: SampleImport_<runname>.csv ─────
+    csv1_name = f"SampleImport_{runname}.csv"
     csv1_path = os.path.join(output_folder, csv1_name)
-    df_import.to_csv(csv1_path, index=False, encoding="utf-8-sig")
+    _rename_with_headers(df_import, import_headers).to_csv(
+        csv1_path, index=False, encoding="utf-8-sig"
+    )
     log.info(f"  → Output 1: {csv1_name}")
 
-    # ── 11. Xuất Output 2: Aviti Manifest CSV ─────────────
-    csv2_name = f"{stem}_{date_str}.csv"
+    # ── 11. Xuất Output 2: Manifest_<runname>_<yyyymmdd>.csv ──
+    csv2_name = f"Manifest_{runname}_{date_str}.csv"
     csv2_path = os.path.join(output_folder, csv2_name)
-    df_aviti.to_csv(csv2_path, index=False, encoding="utf-8-sig")
+    _rename_with_headers(df_aviti, aviti_headers).to_csv(
+        csv2_path, index=False, encoding="utf-8-sig"
+    )
     log.info(f"  → Output 2: {csv2_name}")
 
     return {

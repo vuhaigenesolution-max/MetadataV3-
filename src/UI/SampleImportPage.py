@@ -56,9 +56,9 @@ def get_exe_dir():
 CONFIG_PATH = os.path.join(get_exe_dir(), "last_paths.json")
 
 DEFAULT_LAST = {
-    "source_mode": "file",
-    "source_path": "",
-    "output_path": "",
+    "sample_source_mode": "folder",
+    "sample_source_path": "",
+    "sample_output_path": "",
     "nhat_ky_nam_path": "",
     "nhat_ky_bac_path": "",
     "goi_xn_path": "",
@@ -72,6 +72,9 @@ def load_last_paths():
             # merge key mặc định
             for k, v in DEFAULT_LAST.items():
                 data.setdefault(k, v)
+            # Source SampleImport mặc định = output của Combine (nếu chưa chọn riêng)
+            if not data.get("sample_source_path"):
+                data["sample_source_path"] = data.get("output_path", "")
             return data
         except Exception:
             return DEFAULT_LAST.copy()
@@ -186,7 +189,7 @@ card.grid_columnconfigure(1, weight=1)
 # =========================
 # Source mode
 # =========================
-mode_var = tk.StringVar(value=last.get("source_mode", "file"))
+mode_var = tk.StringVar(value=last.get("sample_source_mode", "folder"))
 
 mode_label = tk.Label(card, text="Source Mode", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
 mode_label.grid(row=0, column=0, padx=(10, 10), pady=6, sticky="e")
@@ -215,7 +218,7 @@ source_label.grid(row=1, column=0, padx=(10, 10), pady=6, sticky="e")
 
 source_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
 source_entry.grid(row=1, column=1, padx=6, pady=6, sticky="ew")
-source_entry.insert(0, last.get("source_path", ""))
+source_entry.insert(0, last.get("sample_source_path", ""))
 
 source_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
 source_hint.grid(row=1, column=3, padx=(6, 8), sticky="w")
@@ -249,7 +252,7 @@ output_label.grid(row=2, column=0, padx=(10, 10), pady=6, sticky="e")
 
 output_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
 output_entry.grid(row=2, column=1, padx=6, pady=6, sticky="ew")
-output_entry.insert(0, last.get("output_path", ""))
+output_entry.insert(0, last.get("sample_output_path", ""))
 
 output_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
 output_hint.grid(row=2, column=3, padx=(6, 8), sticky="w")
@@ -429,14 +432,14 @@ def on_run():
         messagebox.showerror("Error", msg)
         return
 
-    # Save last paths
+    # Save last paths (key riêng để không đè lên CombinePage)
     data = {
-        "source_mode":      mode_var.get(),
-        "source_path":      source_entry.get().strip(),
-        "output_path":      output_entry.get().strip(),
-        "nhat_ky_nam_path": nhat_ky_nam_entry.get().strip(),
-        "nhat_ky_bac_path": nhat_ky_bac_entry.get().strip(),
-        "goi_xn_path":      goi_xn_entry.get().strip(),
+        "sample_source_mode": mode_var.get(),
+        "sample_source_path": source_entry.get().strip(),
+        "sample_output_path": output_entry.get().strip(),
+        "nhat_ky_nam_path":   nhat_ky_nam_entry.get().strip(),
+        "nhat_ky_bac_path":   nhat_ky_bac_entry.get().strip(),
+        "goi_xn_path":        goi_xn_entry.get().strip(),
     }
     save_last_paths(data)
 
@@ -449,29 +452,45 @@ def on_run():
         progress_start_time = time.time()
 
         try:
-            # Progress giả lập lên 95% trong lúc chạy
-            for p in range(0, 96):
+            def progress_callback(current, total):
+                p = int(current / total * 100) if total > 0 else 100
                 root.after(0, ui_set_progress, p)
-                time.sleep(0.02)
 
             result = run_sample_import(
-                source_mode=data["source_mode"],
-                source_path=data["source_path"],
-                output_path=data["output_path"],
+                source_mode=data["sample_source_mode"],
+                source_path=data["sample_source_path"],
+                output_path=data["sample_output_path"],
                 nhat_ky_nam_path=data.get("nhat_ky_nam_path", ""),
                 nhat_ky_bac_path=data.get("nhat_ky_bac_path", ""),
                 goi_xn_path=data.get("goi_xn_path", ""),
+                progress_callback=progress_callback,
             )
 
-            if isinstance(result, list):
-                msg_done = f"Hoàn tất! Đã xuất {len(result)} file.\nFolder: {data['output_path']}"
-            else:
-                msg_done = f"Hoàn tất! File: {result}"
+            file_results    = result.get("file_results", [])
+            j_report_path   = result.get("j_report_path")
+            desc_report_path = result.get("desc_report_path")
 
-            # Done
+            n_files = sum(1 for r in file_results if r.get("csv_import"))
+
+            lines = [f"✓ Đã xuất {n_files} file CSV", f"   {data['sample_output_path']}", ""]
+
+            if j_report_path:
+                lines.append(f"⚠ Cột J / Sample Project trống")
+                lines.append(f"   → {os.path.basename(j_report_path)}")
+            else:
+                lines.append("✓ Không có cảnh báo cột J / Sample Project")
+
+            if desc_report_path:
+                lines.append(f"⚠ Description lệch bảng labcode")
+                lines.append(f"   → {os.path.basename(desc_report_path)}")
+            else:
+                lines.append("✓ Tất cả Description khớp bảng labcode")
+
+            msg_done = "\n".join(lines)
+
             root.after(0, ui_set_progress, 100)
-            root.after(0, btn_open_folder.grid)  # show open folder button
-            root.after(0, lambda: messagebox.showinfo("Success", msg_done))
+            root.after(0, btn_open_folder.grid)
+            root.after(0, lambda: messagebox.showinfo("Kết quả", msg_done))
 
         except Exception as e:
             root.after(0, lambda: messagebox.showerror("Error", str(e)))

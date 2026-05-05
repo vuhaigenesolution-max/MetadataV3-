@@ -8,7 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 
 
 # ============= IMPORT BACKEND =============
-from backend import run_seed_file
+from backend import run_check_sample_number
 
 def go_home():
     try:
@@ -146,7 +146,7 @@ home_btn = tk.Button(
 )
 home_btn.pack(side="right", padx=(20, 0))
 
-subtitle_lbl = tk.Label(header_frame, text="Tạo file mồi", font=SUBTITLE_FONT, fg=TEXT_SUB, bg=PANEL_BG)
+subtitle_lbl = tk.Label(header_frame, text="Check SampleImport", font=SUBTITLE_FONT, fg=TEXT_SUB, bg=PANEL_BG)
 subtitle_lbl.pack(anchor="w", pady=(6, 0))
 
 # Main card
@@ -179,9 +179,9 @@ rb_file.pack(side="left", padx=(0, 14))
 rb_folder.pack(side="left")
 
 # =========================
-# Source path row
+# Source Metadata path row
 # =========================
-source_label = tk.Label(card, text="Source", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+source_label = tk.Label(card, text="Source Metadata", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
 source_label.grid(row=1, column=0, padx=(10, 10), pady=6, sticky="e")
 
 source_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
@@ -213,41 +213,17 @@ update_path_hint(source_hint, source_entry.get(), "file" if mode_var.get() == "f
 
 
 # =========================
-# Output row
+# File Sum row (row 2)
 # =========================
-output_label = tk.Label(card, text="Destination", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
-output_label.grid(row=2, column=0, padx=(10, 10), pady=6, sticky="e")
-
-output_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
-output_entry.grid(row=2, column=1, padx=6, pady=6, sticky="ew")
-output_entry.insert(0, last.get("output_path", ""))
-
-output_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
-output_hint.grid(row=2, column=3, padx=(6, 8), sticky="w")
-update_path_hint(output_hint, output_entry.get(), "folder")
-
-def browse_output():
-    path = filedialog.askdirectory()
-    if path:
-        output_entry.delete(0, tk.END)
-        output_entry.insert(0, path)
-        update_path_hint(output_hint, path, "folder")
-
-ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_output)\
-    .grid(row=2, column=2, padx=(8, 10), pady=6, sticky="w")
-
-# =========================
-# Template row
-# =========================
-template_label = tk.Label(card, text="Template", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
-template_label.grid(row=3, column=0, padx=(10, 10), pady=6, sticky="e")
+template_label = tk.Label(card, text="File Sum", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+template_label.grid(row=2, column=0, padx=(10, 10), pady=6, sticky="e")
 
 template_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
-template_entry.grid(row=3, column=1, padx=6, pady=6, sticky="ew")
+template_entry.grid(row=2, column=1, padx=6, pady=6, sticky="ew")
 template_entry.insert(0, last.get("template_path", ""))
 
 template_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
-template_hint.grid(row=3, column=3, padx=(6, 8), sticky="w")
+template_hint.grid(row=2, column=3, padx=(6, 8), sticky="w")
 update_path_hint(template_hint, template_entry.get(), "file")
 
 def browse_template():
@@ -258,6 +234,30 @@ def browse_template():
         update_path_hint(template_hint, path, "file")
 
 ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_template)\
+    .grid(row=2, column=2, padx=(8, 10), pady=6, sticky="w")
+
+# =========================
+# Destination row (row 3)
+# =========================
+output_label = tk.Label(card, text="Destination", font=LABEL_FONT, fg=TEXT_MAIN, bg=CARD_BG)
+output_label.grid(row=3, column=0, padx=(10, 10), pady=6, sticky="e")
+
+output_entry = tk.Entry(card, font=ENTRY_FONT, bg="#0d2d44", fg=TEXT_MAIN, relief="flat", insertbackground=TEXT_MAIN)
+output_entry.grid(row=3, column=1, padx=6, pady=6, sticky="ew")
+output_entry.insert(0, last.get("output_path", ""))
+
+output_hint = tk.Label(card, text="", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=CARD_BG, anchor="w")
+output_hint.grid(row=3, column=3, padx=(6, 8), sticky="w")
+update_path_hint(output_hint, output_entry.get(), "folder")
+
+def browse_output():
+    path = filedialog.askdirectory()
+    if path:
+        output_entry.delete(0, tk.END)
+        output_entry.insert(0, path)
+        update_path_hint(output_hint, path, "folder")
+
+ttk.Button(card, text="👉Browse", width=10, style="Outline.TButton", command=browse_output)\
     .grid(row=3, column=2, padx=(8, 10), pady=6, sticky="w")
 
 # =========================================================
@@ -315,23 +315,18 @@ btn_run = ttk.Button(btn_frame, text="Run", style="Accent.TButton", width=16)
 btn_run.pack(side="left", padx=14, pady=4)
 
 def validate_paths():
-    mode = mode_var.get()
     src  = source_entry.get().strip()
     tmpl = template_entry.get().strip()
     out  = output_entry.get().strip()
 
     if not src or not tmpl or not out:
-        return False, "Vui lòng chọn đủ Source, Template và Destination."
+        return False, "Vui lòng chọn đủ Source Metadata, File Sum và Destination."
 
-    if mode == "file":
-        if not os.path.isfile(src):
-            return False, "Source mode=File nhưng Source không phải file."
-    else:
-        if not os.path.isdir(src):
-            return False, "Source mode=Folder nhưng Source không phải folder."
+    if not os.path.isdir(src):
+        return False, "Source Metadata phải là folder chứa các file metadata."
 
     if not os.path.isfile(tmpl):
-        return False, "Template phải là file Excel (.xlsx / .xls)."
+        return False, "File Sum phải là file Excel (.xlsx / .xls)."
 
     if not os.path.isdir(out):
         return False, "Destination phải là folder."
@@ -364,18 +359,23 @@ def on_run():
                 pct = int(current / total * 100) if total else 100
                 root.after(0, ui_set_progress, pct)
 
-            result = run_seed_file(
-                data["source_mode"],
-                data["source_path"],
-                data["template_path"],
-                data["output_path"],
+            result = run_check_sample_number(
+                meta_folder=data["source_path"],
+                sum_file=data["template_path"],
+                output_folder=data["output_path"],
                 progress_callback=on_progress,
             )
 
-            msg_done = f"Hoàn tất! Đã xuất {len(result)} file CSV.\nFolder: {data['output_path']}"
+            msg_done = (
+                f"✓ Đã xuất 3 file Excel\n"
+                f"   {data['output_path']}\n\n"
+                f"📁 metadata_combined.xlsx  ({result['n_meta']} dòng)\n"
+                f"📊 {os.path.basename(result['sum_path'])}  ({result['n_sum']} dòng)\n"
+                f"⚠ meta_only.xlsx  ({result['n_meta_only']} dòng — meta không có trong sum)"
+            )
             root.after(0, ui_set_progress, 100)
             root.after(0, btn_open_folder.grid)
-            root.after(0, lambda: messagebox.showinfo("Success", msg_done))
+            root.after(0, lambda: messagebox.showinfo("Kết quả", msg_done))
 
         except Exception as e:
             root.after(0, lambda: messagebox.showerror("Error", str(e)))

@@ -198,7 +198,7 @@ def _validate_df(df, output_folder, runname, date):
         if col not in df.columns:
             continue
         for i, val in enumerate(df[col]):
-            if pd.isna(val):
+            if pd.isna(val) or isinstance(val, (int, float)):
                 continue
             errs = _check_cell(val)
             if errs:

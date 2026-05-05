@@ -20,7 +20,7 @@ BUTTON_FONT = ("Bahnschrift", 12, "bold")
 # Lấy đúng thư mục UI
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ===== Open other pages =====
+# ===== Open other pages ===== 
 def _spawn(script_name):
     kwargs = {}
     if sys.platform == "win32":
@@ -106,7 +106,7 @@ def create_big_button(parent, text, command):
 # 3 nút
 create_big_button(card, "📂   Combine File", open_combine)
 create_big_button(card, "🧾   Tạo file SampleImport & Manifest", open_sample_import)
-create_big_button(card, "🌱   Tạo file mồi", open_seed_file)
+create_big_button(card, "🌱   Check Sample Import", open_seed_file)
 
 # ===== Footer =====
 footer = tk.Label(root, text="Gene Solutions • Automation", font=("Bahnschrift", 10), fg=TEXT_SUB, bg=BG)
