@@ -27,13 +27,6 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import column_index_from_string
 
 
-# ── Đường dẫn mặc định khi chạy trực tiếp ─────────────────
-source_path = r"C:\Users\VUDUCHAI\Downloads"
-file_name   = "SUM_20260420.xlsx"
-file_path   = os.path.join(source_path, file_name)
-sheet       = "Sheet1"
-
-
 # ── Cấu hình page layout ──────────────────────────────────
 PAGE_COLS = 20            # A..T
 STEP = 22                 # 20 cột + 2 cột trống

@@ -140,28 +140,6 @@ def run_check_desc(goi_xn_path: str, output_path: str) -> dict:
     return run_check_description(labcode_file=goi_xn_path, folder_path=output_path)
 
 
-def run_seed_file(source_mode, source_path, template_path, output_path, progress_callback=None):
-    import glob as _glob
-    from Logic.SeedfilePage import process_excel
-
-    if source_mode == "file":
-        result = process_excel(source_path, template_path, output_path)
-        if progress_callback:
-            progress_callback(1, 1)
-        return [result]
-
-    files = _glob.glob(os.path.join(source_path, "*.xlsx")) + \
-            _glob.glob(os.path.join(source_path, "*.xls"))
-    results = []
-    total = len(files)
-    for i, fp in enumerate(files, start=1):
-        csv_path = process_excel(fp, template_path, output_path)
-        results.append(csv_path)
-        if progress_callback:
-            progress_callback(i, total)
-    return results
-
-
 def run_backend(source_mode, source_path, template_path, output_path, sheet_template="Sample", progress_callback=None):
     if source_mode == "file":
         folder = os.path.dirname(source_path)

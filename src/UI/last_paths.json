@@ -1,14 +1,14 @@
 {
   "source_mode": "folder",
-  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Source Sum",
-  "output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum",
+  "source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Source",
+  "output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
   "nhat_ky_nam_path": "C:/Users/VUDUCHAI/Downloads/Nhật kí dò metadata.xlsx",
   "nhat_ky_bac_path": "C:/Users/VUDUCHAI/Downloads/SEQ Track.xlsx",
   "goi_xn_path": "C:/Users/VUDUCHAI/Downloads/Thông tin tên gói xét nghiệm.xlsx",
-  "template_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum/SUM_20260420.xlsx",
+  "template_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Metadata Tool/Template/metadata_TEMPLATE_YYYYMMDD.xlsx",
   "last_collision_per_file": {
     "metadata_R4994_20240514.xlsx": 0,
-    "metadata_R4995_20240514.xlsx": 0,
+    "metadata_R4995_20240514.xlsx": 7,
     "metadata_R4996_20240514.xlsx": 0,
     "metadata_R4997_20240514.xlsx": 0,
     "metadata_R4998_20240514.xlsx": 0,
@@ -22,5 +22,6 @@
   "t7_folder_override": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
   "sample_source_mode": "folder",
   "sample_source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
-  "sample_output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Tet sample import"
+  "sample_output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Tet sample import",
+  "filesum_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum/SUM_20260420.xlsx"
 }
