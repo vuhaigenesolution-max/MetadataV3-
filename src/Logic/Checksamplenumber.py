@@ -124,14 +124,17 @@ def read_one_page_flatten_merge(
 def parse_file_by_pages(source_file_path, sheet_name):
     """Duyệt mọi page → concat thành 1 DataFrame phẳng + 3 cột meta."""
     wb = load_workbook(source_file_path, data_only=True)
-    ws = wb[sheet_name] if sheet_name in wb.sheetnames else wb.active
+    ws = wb[sheet_name] if sheet_name in wb.sheetnames else wb[wb.sheetnames[0]]
 
     page_starts = detect_pages(ws, page_cols=PAGE_COLS, step=STEP, probe_rows=4)
     page_num = len(page_starts)
 
     df_lst = []
     for col_start in page_starts:
-        df_page = read_one_page_flatten_merge(ws, col_start, PAGE_COLS, START_EXCEL_ROW)
+        df_page = read_one_page_flatten_merge(
+            ws, col_start,
+            page_cols=PAGE_COLS, start_excel_row=START_EXCEL_ROW,
+        )
 
         # 3 thông tin meta ở dòng 1 (index 0) của page
         run_content   = df_page.iat[0, 0]    # A1
@@ -215,7 +218,7 @@ def read_meta_folder(folder: str, sheet_name: str = "Sample") -> pd.DataFrame:
         runname = m.group(1) if m else os.path.splitext(fname)[0]
 
         wb = load_workbook(fp, data_only=True, read_only=True)
-        ws = wb[sheet_name] if sheet_name in wb.sheetnames else wb.active
+        ws = wb[sheet_name] if sheet_name in wb.sheetnames else wb[wb.sheetnames[0]]
 
         # Header ở row 21 — lấy 4 ô tương ứng A, B, U, V
         header_row = next(ws.iter_rows(min_row=21, max_row=21, values_only=True), ())
@@ -346,8 +349,8 @@ def find_meta_only(df_meta: pd.DataFrame, df_sum: pd.DataFrame) -> pd.DataFrame:
         - NIPT  : tồn tại df_sum row có Sample Type='NIPT', Loại rỗng,
                   RunName khớp, Col 3 = expNum, sample_order = sampleOrder
         - other : tồn tại df_sum row có Sample Type='other',
-                  RunName khớp, sample_order = sampleOrder,
-                  Col 3 = Col_22 (nếu Col_22 không trống) HOẶC = Col_21 (nếu Col_22 trống)
+                  RunName khớp, Col 3 = Col_22 (nếu Col_22 không trống) HOẶC = Col_21
+                  → KHÔNG so sample_order (mẫu non-NIPT chỉ cần khớp tên lô).
 
     Output: 3 cột RunName, expNum, sampleOrder (chỉ những row chưa match).
     """
@@ -369,19 +372,21 @@ def find_meta_only(df_meta: pd.DataFrame, df_sum: pd.DataFrame) -> pd.DataFrame:
 
     nipt_key  = rn_m + "|" + exp_m + "|" + ord_m
     other_id  = v_m.where(v_m.ne(""), u_m)        # ưu tiên V, fallback U
-    other_key = rn_m + "|" + other_id + "|" + ord_m
+    other_key = rn_m + "|" + other_id              # KHÔNG kèm sample_order
 
     # ── Build set keys từ df_sum
     rn_s  = _norm(df_sum["RunName"])
     c3_s  = _norm(df_sum["Col 3"])
     ord_s = _norm(df_sum["sample_order"])
-    sum_key = rn_s + "|" + c3_s + "|" + ord_s
+
+    nipt_sum_key  = rn_s + "|" + c3_s + "|" + ord_s
+    other_sum_key = rn_s + "|" + c3_s              # KHÔNG kèm sample_order
 
     nipt_mask  = (df_sum["Sample Type"] == "NIPT") & (df_sum["Loại"].astype(str).str.strip() == "")
     other_mask = df_sum["Sample Type"] == "other"
 
-    nipt_keys  = set(sum_key[nipt_mask])
-    other_keys = set(sum_key[other_mask])
+    nipt_keys  = set(nipt_sum_key[nipt_mask])
+    other_keys = set(other_sum_key[other_mask])
 
     matched = nipt_key.isin(nipt_keys) | other_key.isin(other_keys)
     return df_meta.loc[~matched, [rn_col, exp_col, ord_col]].reset_index(drop=True)

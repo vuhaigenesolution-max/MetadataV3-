@@ -23,5 +23,15 @@
   "sample_source_mode": "folder",
   "sample_source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
   "sample_output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Tet sample import",
-  "filesum_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum/SUM_20260420.xlsx"
+  "filesum_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum/SUM_20260420.xlsx",
+  "combine_source_mode": "folder",
+  "combine_source_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Source",
+  "combine_template_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/Metadata Tool/Template/metadata_TEMPLATE_YYYYMMDD.xlsx",
+  "combine_output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Excel Tool/OUTPUT TEST",
+  "check_meta_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/Source Sum",
+  "check_filesum_path": "C:/Users/VUDUCHAI/Downloads/SUM_20260420.xlsx",
+  "check_output_path": "C:/Users/VUDUCHAI/OneDrive - Gene Solutions/Tool Excel Team Bi/test sum",
+  "sample_nhat_ky_nam_path": "C:/Users/VUDUCHAI/Downloads/Nhật kí dò metadata.xlsx",
+  "sample_nhat_ky_bac_path": "C:/Users/VUDUCHAI/Downloads/SEQ Track.xlsx",
+  "sample_goi_xn_path": "C:/Users/VUDUCHAI/Downloads/Thông tin tên gói xét nghiệm.xlsx"
 }

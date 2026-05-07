@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 from _theme import (
     BG, CARD_BG, PANEL_BG, ACCENT, TEXT_MAIN, TEXT_SUB,
     TITLE_FONT, SUBTITLE_FONT, LABEL_FONT, ENTRY_FONT, HINT_FONT, ENTRY_BG,
-    load_last_paths, save_last_paths, update_path_hint,
+    load_last_paths, save_last_paths, update_path_hint, bind_hint_click,
 )
 from _progress import SmoothProgress
 from backend import run_check_sample_number
@@ -24,6 +24,7 @@ class SeedFilePage(tk.Frame):
     def __init__(self, parent, controller, **kwargs):
         super().__init__(parent, bg=BG, **kwargs)
         self.controller = controller
+        self._last_result: dict | None = None
         self._build_ui()
 
     def on_show(self):
@@ -92,12 +93,15 @@ class SeedFilePage(tk.Frame):
         self.progress = SmoothProgress(prog_frame, length=520, bg=CARD_BG)
         self.progress.pack()
 
-        # Row 5: Run button
+        # Row 5: Run + Xem kết quả
         btn_frame = tk.Frame(card, bg=CARD_BG)
         btn_frame.grid(row=5, column=0, columnspan=4, pady=(10, 0))
         self.btn_run = ttk.Button(btn_frame, text="Run", style="Accent.TButton",
                                   width=16, command=self._on_run)
         self.btn_run.pack(side="left", padx=14, pady=4)
+        ttk.Button(btn_frame, text="📋 Xem kết quả", style="Outline.TButton",
+                   width=16, command=self._show_summary_skipped)\
+            .pack(side="left", padx=4, pady=4)
 
         # Row 6: Open folder (hidden ban đầu)
         self.btn_open_folder = ttk.Button(
@@ -130,6 +134,7 @@ class SeedFilePage(tk.Frame):
         hint = tk.Label(parent, text="", font=HINT_FONT, fg=TEXT_SUB, bg=CARD_BG, anchor="w")
         hint.grid(row=row, column=3, padx=(6, 8), sticky="w")
         update_path_hint(hint, value, kind)
+        bind_hint_click(hint, lambda: entry.get().strip(), kind)
 
         def _browse():
             path = on_browse()
@@ -188,6 +193,7 @@ class SeedFilePage(tk.Frame):
 
         self.btn_open_folder.grid_remove()
         self.progress.reset()
+        self.progress.set_target(2, "Đang khởi động...")
         self._set_buttons_disabled(True)
 
         threading.Thread(target=self._worker, args=(data,), daemon=True).start()
@@ -212,16 +218,14 @@ class SeedFilePage(tk.Frame):
                 progress_callback=progress_cb,
             )
 
-            msg_done = (
-                f"✓ Đã xuất 3 file Excel\n"
-                f"   {data['check_output_path']}\n\n"
-                f"📁 metadata_combined.xlsx  ({result['n_meta']} dòng)\n"
-                f"📊 {os.path.basename(result['sum_path'])}  ({result['n_sum']} dòng)\n"
-                f"⚠ meta_only.xlsx  ({result['n_meta_only']} dòng — meta không có trong sum)"
-            )
+            self._last_result = {
+                "result":      result,
+                "output_path": data["check_output_path"],
+            }
+
             self.after(0, lambda: self.progress.finish("✓ Hoàn tất"))
             self.after(0, self.btn_open_folder.grid)
-            self.after(0, lambda: messagebox.showinfo("Kết quả", msg_done))
+            self.after(0, self._show_summary_skipped)
 
         except Exception as e:
             err_msg = str(e)
@@ -234,6 +238,87 @@ class SeedFilePage(tk.Frame):
         state = "disabled" if disabled else "normal"
         self.btn_run.config(state=state)
         self.btn_open_folder.config(state=state)
+
+    # ── Summary popup ─────────────────────────────────────
+    def _show_summary_skipped(self):
+        """Bấm 'Xem kết quả': nếu đã chạy → show kết quả thật; chưa chạy → thông báo."""
+        if self._last_result is None:
+            messagebox.showinfo("Kết quả", "Chưa chạy lần nào trong session này.\nBấm Run để bắt đầu.")
+            return
+        self._show_summary(self._last_result["result"], self._last_result["output_path"])
+
+    def _show_summary(self, result: dict, output_folder: str):
+        n_meta         = result.get("n_meta", 0)
+        n_sum          = result.get("n_sum", 0)
+        n_meta_only    = result.get("n_meta_only", 0)
+        meta_path      = result.get("meta_path")
+        sum_path       = result.get("sum_path")
+        meta_only_path = result.get("meta_only_path")
+        df_only        = result.get("df_meta_only")
+
+        win = tk.Toplevel(self)
+        win.title("Kết quả xử lý")
+        win.geometry("540x460")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+        win.grab_set()
+
+        tk.Label(win, text="Kết quả xử lý", font=TITLE_FONT,
+                 fg=TEXT_MAIN, bg=BG).pack(pady=(16, 2))
+        tk.Label(win, text=f"Folder: {output_folder}", font=HINT_FONT,
+                 fg=TEXT_SUB, bg=BG, wraplength=500).pack(pady=(0, 6))
+
+        frame = tk.Frame(win, bg=CARD_BG, padx=20, pady=14)
+        frame.pack(fill="both", expand=True, padx=20, pady=(0, 6))
+
+        def section(title, icon):
+            tk.Label(frame, text=f"{icon}  {title}", font=LABEL_FONT,
+                     fg=ACCENT, bg=CARD_BG, anchor="w")\
+                .pack(fill="x", pady=(10, 2))
+            tk.Frame(frame, bg=ACCENT, height=1).pack(fill="x")
+
+        def line(text, sub=False):
+            tk.Label(frame, text=text,
+                     font=("Bahnschrift", 10 if sub else 11),
+                     fg=TEXT_SUB if sub else TEXT_MAIN,
+                     bg=CARD_BG, anchor="w", wraplength=480, justify="left")\
+                .pack(fill="x", padx=8, pady=1)
+
+        # 1. Metadata combined
+        section("Metadata gộp", "📁")
+        if n_meta == 0:
+            line("  Không đọc được dòng nào từ folder metadata", sub=True)
+        else:
+            line(f"✔  Đã gộp {n_meta} dòng từ folder metadata")
+            if meta_path:
+                line(f"     → {os.path.basename(meta_path)}", sub=True)
+
+        # 2. SUM đã xử lý
+        section("File SUM đã xử lý", "📊")
+        if n_sum == 0:
+            line("  Không đọc được dòng nào từ file SUM", sub=True)
+        else:
+            line(f"✔  Đã parse {n_sum} dòng SUM")
+            if sum_path:
+                line(f"     → {os.path.basename(sum_path)}", sub=True)
+
+        # 3. Meta không có trong SUM
+        section("Meta không có trong SUM", "⚠")
+        if n_meta_only == 0:
+            line("✔  Tất cả dòng meta đều có trong SUM")
+        else:
+            counts = {}
+            if df_only is not None and not df_only.empty and "RunName" in df_only.columns:
+                counts = df_only.groupby("RunName").size().to_dict()
+            line(f"⚠  Phát hiện {n_meta_only} dòng meta không match "
+                 f"trong {len(counts)} run:")
+            for runname, cnt in counts.items():
+                line(f"     • {runname}  →  {cnt} dòng", sub=True)
+            if meta_only_path:
+                line(f"     → {os.path.basename(meta_only_path)}", sub=True)
+
+        ttk.Button(win, text="Đóng", style="Accent.TButton",
+                   command=win.destroy).pack(pady=(6, 14))
 
     def _open_output_folder(self):
         folder = self.output_entry.get().strip()

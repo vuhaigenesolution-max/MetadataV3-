@@ -95,3 +95,24 @@ def update_path_hint(label_widget: tk.Label, path: str, kind: str = "file"):
     base = os.path.basename(path.rstrip("/\\"))
     prefix = "📄" if kind == "file" else "📁"
     label_widget.config(text=f"{prefix} {base}", fg="#dcdde1")
+
+
+def open_path(path: str, kind: str = "file"):
+    """Mở path bằng Explorer.
+    - kind='folder' → mở folder
+    - kind='file'   → mở folder chứa file (để user thấy file ở đâu)
+    Bỏ qua nếu path rỗng hoặc không tồn tại.
+    """
+    if not path:
+        return
+    if not os.path.exists(path):
+        return
+    target = path if kind == "folder" else os.path.dirname(path)
+    if target and os.path.isdir(target):
+        os.startfile(target)
+
+
+def bind_hint_click(label: tk.Label, get_path, kind: str):
+    """Bind click vào hint label để mở path. get_path là callable trả về str."""
+    label.config(cursor="hand2")
+    label.bind("<Button-1>", lambda _e: open_path(get_path(), kind))

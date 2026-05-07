@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 from _theme import (
     BG, CARD_BG, PANEL_BG, ACCENT, TEXT_MAIN, TEXT_SUB,
     TITLE_FONT, SUBTITLE_FONT, LABEL_FONT, ENTRY_FONT, HINT_FONT, ENTRY_BG,
-    load_last_paths, save_last_paths, update_path_hint,
+    load_last_paths, save_last_paths, update_path_hint, bind_hint_click,
 )
 from _progress import SmoothProgress
 from backend import run_sample_import
@@ -27,6 +27,7 @@ class SampleImportPage(tk.Frame):
     def __init__(self, parent, controller, **kwargs):
         super().__init__(parent, bg=BG, **kwargs)
         self.controller = controller
+        self._last_result: dict | None = None
         self._build_ui()
 
     def on_show(self):
@@ -124,12 +125,15 @@ class SampleImportPage(tk.Frame):
         self.progress = SmoothProgress(prog_frame, length=520, bg=CARD_BG)
         self.progress.pack()
 
-        # Row 8: Run
+        # Row 8: Run + Xem kết quả
         btn_frame = tk.Frame(card, bg=CARD_BG)
         btn_frame.grid(row=8, column=0, columnspan=4, pady=(10, 0))
         self.btn_run = ttk.Button(btn_frame, text="Run", style="Accent.TButton",
                                   width=16, command=self._on_run)
         self.btn_run.pack(side="left", padx=14, pady=4)
+        ttk.Button(btn_frame, text="📋 Xem kết quả", style="Outline.TButton",
+                   width=16, command=self._show_summary_skipped)\
+            .pack(side="left", padx=4, pady=4)
 
         # Row 9: Open folder
         self.btn_open_folder = ttk.Button(
@@ -159,6 +163,7 @@ class SampleImportPage(tk.Frame):
         hint = tk.Label(parent, text="", font=HINT_FONT, fg=TEXT_SUB, bg=CARD_BG, anchor="w")
         hint.grid(row=row, column=3, padx=(6, 8), sticky="w")
         update_path_hint(hint, value, kind)
+        bind_hint_click(hint, lambda: entry.get().strip(), kind)
 
         def _browse():
             path = on_browse()
@@ -241,6 +246,7 @@ class SampleImportPage(tk.Frame):
 
         self.btn_open_folder.grid_remove()
         self.progress.reset()
+        self.progress.set_target(2, "Đang khởi động...")
         self._set_buttons_disabled(True)
 
         threading.Thread(target=self._worker, args=(data,), daemon=True).start()
@@ -262,23 +268,14 @@ class SampleImportPage(tk.Frame):
                 progress_callback=progress_cb,
             )
 
-            file_results     = result.get("file_results", [])
-            j_report_path    = result.get("j_report_path")
-            desc_report_path = result.get("desc_report_path")
-            n_files = sum(1 for r in file_results if r.get("csv_import"))
-
-            lines = [f"✓ Đã xuất {n_files} file CSV", f"   {data['sample_output_path']}", ""]
-            lines.append(f"⚠ Cột J / Sample Project trống\n   → {os.path.basename(j_report_path)}"
-                         if j_report_path else
-                         "✓ Không có cảnh báo cột J / Sample Project")
-            lines.append(f"⚠ Description lệch bảng labcode\n   → {os.path.basename(desc_report_path)}"
-                         if desc_report_path else
-                         "✓ Tất cả Description khớp bảng labcode")
-            msg_done = "\n".join(lines)
+            self._last_result = {
+                "result":       result,
+                "output_path":  data["sample_output_path"],
+            }
 
             self.after(0, lambda: self.progress.finish("✓ Hoàn tất"))
             self.after(0, self.btn_open_folder.grid)
-            self.after(0, lambda: messagebox.showinfo("Kết quả", msg_done))
+            self.after(0, self._show_summary_skipped)
 
         except Exception as e:
             err_msg = str(e)
@@ -291,6 +288,86 @@ class SampleImportPage(tk.Frame):
         state = "disabled" if disabled else "normal"
         self.btn_run.config(state=state)
         self.btn_open_folder.config(state=state)
+
+    # ── Summary popup ─────────────────────────────────────
+    def _show_summary_skipped(self):
+        """Bấm 'Xem kết quả': nếu đã chạy → show kết quả thật; chưa chạy → thông báo."""
+        if self._last_result is None:
+            messagebox.showinfo("Kết quả", "Chưa chạy lần nào trong session này.\nBấm Run để bắt đầu.")
+            return
+        self._show_summary(self._last_result["result"], self._last_result["output_path"])
+
+    def _show_summary(self, result: dict, output_folder: str):
+        file_results     = result.get("file_results", [])
+        j_report_path    = result.get("j_report_path")
+        desc_report_path = result.get("desc_report_path")
+        df_j_report      = result.get("j_error_report")
+        df_desc_report   = result.get("desc_error_report")
+        n_files = sum(1 for r in file_results if r.get("csv_import"))
+
+        win = tk.Toplevel(self)
+        win.title("Kết quả xử lý")
+        win.geometry("540x460")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+        win.grab_set()
+
+        tk.Label(win, text="Kết quả xử lý", font=TITLE_FONT,
+                 fg=TEXT_MAIN, bg=BG).pack(pady=(16, 2))
+        tk.Label(win, text=f"Folder: {output_folder}", font=HINT_FONT,
+                 fg=TEXT_SUB, bg=BG, wraplength=500).pack(pady=(0, 6))
+
+        frame = tk.Frame(win, bg=CARD_BG, padx=20, pady=14)
+        frame.pack(fill="both", expand=True, padx=20, pady=(0, 6))
+
+        def section(title, icon):
+            tk.Label(frame, text=f"{icon}  {title}", font=LABEL_FONT,
+                     fg=ACCENT, bg=CARD_BG, anchor="w")\
+                .pack(fill="x", pady=(10, 2))
+            tk.Frame(frame, bg=ACCENT, height=1).pack(fill="x")
+
+        def line(text, sub=False):
+            tk.Label(frame, text=text,
+                     font=("Bahnschrift", 10 if sub else 11),
+                     fg=TEXT_SUB if sub else TEXT_MAIN,
+                     bg=CARD_BG, anchor="w", wraplength=480, justify="left")\
+                .pack(fill="x", padx=8, pady=1)
+
+        # 1. File CSV đã xuất
+        section("File CSV đã xuất", "📄")
+        if n_files == 0:
+            line("  Không có file CSV nào được xuất", sub=True)
+        else:
+            line(f"✔  Đã xuất {n_files} file (SampleImport + Manifest)")
+
+        # 2. Cột J / Sample Project trống
+        section("Cột J / Sample Project trống", "⚡")
+        if df_j_report is None or df_j_report.empty:
+            line("✔  Không có cảnh báo cột J / Sample Project")
+        else:
+            counts = df_j_report.groupby("File").size().to_dict() \
+                     if "File" in df_j_report.columns else {}
+            line(f"⚠  Phát hiện {len(df_j_report)} dòng trống "
+                 f"trong {len(counts)} file:")
+            for fname, cnt in counts.items():
+                line(f"     • {fname}  →  {cnt} dòng", sub=True)
+            line(f"     → {os.path.basename(j_report_path or '')}", sub=True)
+
+        # 3. Description lệch bảng labcode
+        section("Description lệch bảng labcode", "🔍")
+        if df_desc_report is None or df_desc_report.empty:
+            line("✔  Tất cả Description khớp bảng labcode")
+        else:
+            counts = df_desc_report.groupby("File").size().to_dict() \
+                     if "File" in df_desc_report.columns else {}
+            line(f"⚠  Phát hiện {len(df_desc_report)} dòng lệch "
+                 f"trong {len(counts)} file:")
+            for fname, cnt in counts.items():
+                line(f"     • {fname}  →  {cnt} dòng", sub=True)
+            line(f"     → {os.path.basename(desc_report_path or '')}", sub=True)
+
+        ttk.Button(win, text="Đóng", style="Accent.TButton",
+                   command=win.destroy).pack(pady=(6, 14))
 
     def _open_output_folder(self):
         folder = self.output_entry.get().strip()

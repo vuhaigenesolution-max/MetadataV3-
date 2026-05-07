@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 from _theme import (
     BG, CARD_BG, PANEL_BG, ACCENT, TEXT_MAIN, TEXT_SUB,
     TITLE_FONT, SUBTITLE_FONT, LABEL_FONT, ENTRY_FONT, HINT_FONT, ENTRY_BG,
-    load_last_paths, save_last_paths, update_path_hint,
+    load_last_paths, save_last_paths, update_path_hint, bind_hint_click,
 )
 from _progress import SmoothProgress
 from backend import run_backend
@@ -25,6 +25,7 @@ class CombinePage(tk.Frame):
     def __init__(self, parent, controller, **kwargs):
         super().__init__(parent, bg=BG, **kwargs)
         self.controller = controller
+        self._last_result: dict | None = None
         self._build_ui()
 
     def on_show(self):
@@ -100,12 +101,15 @@ class CombinePage(tk.Frame):
         self.progress = SmoothProgress(prog_frame, length=520, bg=CARD_BG)
         self.progress.pack()
 
-        # Row 5: Run
+        # Row 5: Run + Xem kết quả
         btn_frame = tk.Frame(card, bg=CARD_BG)
         btn_frame.grid(row=5, column=0, columnspan=4, pady=(10, 0))
         self.btn_run = ttk.Button(btn_frame, text="Run", style="Accent.TButton",
                                   width=16, command=self._on_run)
         self.btn_run.pack(side="left", padx=14, pady=4)
+        ttk.Button(btn_frame, text="📋 Xem kết quả", style="Outline.TButton",
+                   width=16, command=self._show_summary_skipped)\
+            .pack(side="left", padx=4, pady=4)
 
         # Row 6: Open folder
         self.btn_open_folder = ttk.Button(
@@ -135,6 +139,7 @@ class CombinePage(tk.Frame):
         hint = tk.Label(parent, text="", font=HINT_FONT, fg=TEXT_SUB, bg=CARD_BG, anchor="w")
         hint.grid(row=row, column=3, padx=(6, 8), sticky="w")
         update_path_hint(hint, value, kind)
+        bind_hint_click(hint, lambda: entry.get().strip(), kind)
 
         def _browse():
             path = on_browse()
@@ -202,6 +207,7 @@ class CombinePage(tk.Frame):
 
         self.btn_open_folder.grid_remove()
         self.progress.reset()
+        self.progress.set_target(2, "Đang khởi động...")
         self._set_buttons_disabled(True)
 
         threading.Thread(target=self._worker, args=(data,), daemon=True).start()
@@ -225,6 +231,11 @@ class CombinePage(tk.Frame):
                 "last_error_files":        result.get("error_files", []),
             })
 
+            self._last_result = {
+                "result":      result,
+                "output_path": data["combine_output_path"],
+            }
+
             self.after(0, lambda: self.progress.finish("✓ Hoàn tất — đang mở T7 check"))
             self.after(0, self.btn_open_folder.grid)
             # Auto chain → primreT7
@@ -245,6 +256,98 @@ class CombinePage(tk.Frame):
         state = "disabled" if disabled else "normal"
         self.btn_run.config(state=state)
         self.btn_open_folder.config(state=state)
+
+    # ── Summary popup ─────────────────────────────────────
+    def _show_summary_skipped(self):
+        """Bấm 'Xem kết quả': nếu đã chạy → show kết quả thật; chưa chạy → thông báo."""
+        if self._last_result is None:
+            messagebox.showinfo("Kết quả", "Chưa chạy lần nào trong session này.\nBấm Run để bắt đầu.")
+            return
+        self._show_summary(self._last_result["result"], self._last_result["output_path"])
+
+    def _show_summary(self, result: dict, output_folder: str):
+        files            = result.get("files", []) or []
+        collisions_total = result.get("collisions", 0)
+        per_file         = result.get("collision_per_file", {}) or {}
+        error_files      = result.get("error_files", []) or []
+        t7_result        = result.get("t7") or {}
+
+        win = tk.Toplevel(self)
+        win.title("Kết quả xử lý")
+        win.geometry("540x460")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+        win.grab_set()
+
+        tk.Label(win, text="Kết quả xử lý", font=TITLE_FONT,
+                 fg=TEXT_MAIN, bg=BG).pack(pady=(16, 2))
+        tk.Label(win, text=f"Folder: {output_folder}", font=HINT_FONT,
+                 fg=TEXT_SUB, bg=BG, wraplength=500).pack(pady=(0, 6))
+
+        frame = tk.Frame(win, bg=CARD_BG, padx=20, pady=14)
+        frame.pack(fill="both", expand=True, padx=20, pady=(0, 6))
+
+        def section(title, icon):
+            tk.Label(frame, text=f"{icon}  {title}", font=LABEL_FONT,
+                     fg=ACCENT, bg=CARD_BG, anchor="w")\
+                .pack(fill="x", pady=(10, 2))
+            tk.Frame(frame, bg=ACCENT, height=1).pack(fill="x")
+
+        def line(text, sub=False):
+            tk.Label(frame, text=text,
+                     font=("Bahnschrift", 10 if sub else 11),
+                     fg=TEXT_SUB if sub else TEXT_MAIN,
+                     bg=CARD_BG, anchor="w", wraplength=480, justify="left")\
+                .pack(fill="x", padx=8, pady=1)
+
+        # 1. File metadata đã xuất
+        section("File metadata đã xuất", "📄")
+        if not files:
+            line("  Không có file metadata nào được xuất", sub=True)
+        else:
+            line(f"✔  Đã xuất {len(files)} file metadata")
+
+        # 2. Collision trong SampleImport
+        section("Collision trong SampleImport", "⚡")
+        files_with_col = {k: v for k, v in per_file.items() if v > 0}
+        if not per_file:
+            line("  Chưa có dữ liệu collision", sub=True)
+        elif not files_with_col:
+            line("✔  Không phát hiện collision trong tất cả file")
+        else:
+            line(f"⚠  Phát hiện {collisions_total} cặp collision "
+                 f"trong {len(files_with_col)} file:")
+            for fname, cnt in files_with_col.items():
+                line(f"     • {fname}  →  {cnt} cặp", sub=True)
+
+        # 3. Ký tự đặc biệt / khoảng trắng
+        section("Ký tự đặc biệt / khoảng trắng", "🔍")
+        if not error_files:
+            line("✔  Không phát hiện ký tự đặc biệt")
+        else:
+            line(f"⚠  Phát hiện lỗi trong {len(error_files)} file:")
+            for ef in error_files:
+                line(f"     • {ef}", sub=True)
+
+        # 4. Mẫu T7 trùng (auto-chained)
+        section("Mẫu T7 trùng", "🧬")
+        msg = t7_result.get("message", "")
+        tot = t7_result.get("total", 0)
+        dup = t7_result.get("duplicates", 0)
+        if msg == "no_data":
+            line("  Không đọc được T-primer", sub=True)
+        elif msg == "no_duplicate":
+            line(f"✔  Không có primer T7 nào trùng  (đã check {tot} primer)")
+        elif msg == "ok":
+            line(f"⚠  Phát hiện {dup} primer T7 trùng / {tot} primer")
+            line("     Xem file: Primer_Check_Result.xlsx", sub=True)
+        elif msg == "error":
+            line(f"  Lỗi T7: {t7_result.get('error', '')}", sub=True)
+        else:
+            line(f"  {msg or '—'}", sub=True)
+
+        ttk.Button(win, text="Đóng", style="Accent.TButton",
+                   command=win.destroy).pack(pady=(6, 14))
 
     def _open_output_folder(self):
         folder = self.output_entry.get().strip()

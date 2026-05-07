@@ -192,12 +192,16 @@ def _check_col_j_empty(df_import: pd.DataFrame, fname: str, runname: str,
     if df_err.empty:
         return empty_df
 
+    kit_label = "T7" if "T7" in kit_chay else "MGI"
+    reason = f"Kit {kit_label} yêu cầu cột J (Sample Project) không được trống"
+
     result = pd.DataFrame({
         "File":    fname,
         "Runname": runname,
         "Kit":     kit_chay,
         "SampleID": df_err["A"] if "A" in df_err.columns else "",
         "ColJ":    df_err["J"],
+        "Lý do":   reason,
     })
     return result.reset_index(drop=True)
 
@@ -268,12 +272,15 @@ def _check_sample_project_empty(df_import: pd.DataFrame, fname: str, runname: st
     if df_err.empty:
         return empty_df
 
+    reason = f"Sequencer {sequencer} (G99) yêu cầu Sample Project không được trống"
+
     result = pd.DataFrame({
         "File":           fname,
         "Runname":        runname,
         "Sequencer":      sequencer,
         "SampleID":       df_err["A"] if "A" in df_err.columns else "",
         "SampleProject":  df_err[sample_project_col],
+        "Lý do":          reason,
     })
     return result.reset_index(drop=True)
 

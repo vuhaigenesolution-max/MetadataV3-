@@ -15,7 +15,7 @@ from Logic.Primer_T7 import process_primer_t7
 from _theme import (
     BG, CARD_BG, PANEL_BG, ACCENT, TEXT_MAIN, TEXT_SUB,
     TITLE_FONT, SUBTITLE_FONT, LABEL_FONT, ENTRY_FONT, HINT_FONT, ENTRY_BG,
-    load_last_paths, save_last_paths, update_path_hint,
+    load_last_paths, save_last_paths, update_path_hint, bind_hint_click,
 )
 from _progress import SmoothProgress
 
@@ -30,6 +30,7 @@ class PrimerT7Page(tk.Frame):
         super().__init__(parent, bg=BG, **kwargs)
         self.controller = controller
         self.file_vars: dict = {}
+        self._last_t7_result: dict | None = None
         self._build_ui()
 
     def on_show(self):
@@ -173,6 +174,7 @@ class PrimerT7Page(tk.Frame):
         hint = tk.Label(parent, text="", font=HINT_FONT, fg=TEXT_SUB, bg=CARD_BG, anchor="w")
         hint.grid(row=row, column=3, padx=(6, 8), sticky="w")
         update_path_hint(hint, value, kind)
+        bind_hint_click(hint, lambda: entry.get().strip(), kind)
 
         def _browse():
             path = on_browse()
@@ -240,7 +242,7 @@ class PrimerT7Page(tk.Frame):
             self.file_vars[fname] = var
 
             def upd(v=var, r=row):
-                bg = SEL_BG if v.get() else r._orig_bg
+                bg = SEL_BG if v.get() else r._orig_bg  # type: ignore[attr-defined]
                 r.config(bg=bg)
                 for c in r.winfo_children():
                     if isinstance(c, tk.Label):
@@ -269,7 +271,7 @@ class PrimerT7Page(tk.Frame):
             v.set(state)
         for row in self.list_frame.winfo_children():
             if isinstance(row, tk.Frame):
-                bg = SEL_BG if state else row._orig_bg
+                bg = SEL_BG if state else row._orig_bg  # type: ignore[attr-defined]
                 row.config(bg=bg)
                 for c in row.winfo_children():
                     if isinstance(c, tk.Label):
@@ -310,6 +312,7 @@ class PrimerT7Page(tk.Frame):
 
         self.btn_open_folder.grid_remove()
         self.progress.reset()
+        self.progress.set_target(2, "Đang khởi động...")
         self.btn_run.config(state="disabled")
 
         def worker():
@@ -323,6 +326,7 @@ class PrimerT7Page(tk.Frame):
                     file_paths=selected, output_folder=folder,
                     progress_callback=progress_cb,
                 )
+                self._last_t7_result = result
                 self.after(0, lambda: self.progress.finish("✓ Hoàn tất"))
                 self.after(0, self.btn_open_folder.grid)
                 self.after(0, lambda r=result, f=folder: self._show_summary(r, f))
@@ -337,8 +341,16 @@ class PrimerT7Page(tk.Frame):
         threading.Thread(target=worker, daemon=True).start()
 
     def _show_summary_skipped(self):
-        self._show_summary({"message": "skipped", "total": 0, "duplicates": 0},
-                          self.folder_entry.get().strip())
+        """Nếu đã chạy Run trong session này → show kết quả thật;
+        chưa chạy thì show 'skipped'."""
+        folder = self.folder_entry.get().strip()
+        if self._last_t7_result is not None:
+            self._show_summary(self._last_t7_result, folder)
+        else:
+            self._show_summary(
+                {"message": "skipped", "total": 0, "duplicates": 0},
+                folder,
+            )
 
     def _show_summary(self, t7_result, output_folder):
         cfg = load_last_paths()

@@ -67,6 +67,7 @@ def run_check_sample_number(meta_folder, sum_file, output_folder, progress_callb
         "n_meta":         len(df_meta),
         "n_sum":          len(df_sum),
         "n_meta_only":    len(df_meta_only),
+        "df_meta_only":   df_meta_only,
     }
 
 
