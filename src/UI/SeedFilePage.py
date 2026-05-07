@@ -251,8 +251,6 @@ class SeedFilePage(tk.Frame):
         n_meta         = result.get("n_meta", 0)
         n_sum          = result.get("n_sum", 0)
         n_meta_only    = result.get("n_meta_only", 0)
-        meta_path      = result.get("meta_path")
-        sum_path       = result.get("sum_path")
         meta_only_path = result.get("meta_only_path")
         df_only        = result.get("df_meta_only")
 
@@ -284,28 +282,16 @@ class SeedFilePage(tk.Frame):
                      bg=CARD_BG, anchor="w", wraplength=480, justify="left")\
                 .pack(fill="x", padx=8, pady=1)
 
-        # 1. Metadata combined
-        section("Metadata gộp", "📁")
-        if n_meta == 0:
-            line("  Không đọc được dòng nào từ folder metadata", sub=True)
-        else:
-            line(f"✔  Đã gộp {n_meta} dòng từ folder metadata")
-            if meta_path:
-                line(f"     → {os.path.basename(meta_path)}", sub=True)
+        # 1. Tổng quan
+        section("Tổng quan", "📊")
+        line(f"   Metadata gộp:  {n_meta} dòng")
+        line(f"   SUM đã parse:  {n_sum} dòng")
 
-        # 2. SUM đã xử lý
-        section("File SUM đã xử lý", "📊")
-        if n_sum == 0:
-            line("  Không đọc được dòng nào từ file SUM", sub=True)
-        else:
-            line(f"✔  Đã parse {n_sum} dòng SUM")
-            if sum_path:
-                line(f"     → {os.path.basename(sum_path)}", sub=True)
-
-        # 3. Meta không có trong SUM
+        # 2. Meta không có trong SUM
         section("Meta không có trong SUM", "⚠")
         if n_meta_only == 0:
-            line("✔  Tất cả dòng meta đều có trong SUM")
+            line("✔  Có đầy đủ — tất cả dòng meta đều có trong SUM")
+            line("   (không xuất file meta_only.xlsx)", sub=True)
         else:
             counts = {}
             if df_only is not None and not df_only.empty and "RunName" in df_only.columns:

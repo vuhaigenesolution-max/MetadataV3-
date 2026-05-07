@@ -10,22 +10,22 @@ from Logic.CombieFile import process_combine_files
 from Logic.Primer_T7 import process_primer_t7
 from Logic.SampleImport import process_sample_import
 from Logic.CheckDescription import run_check_description
-from Logic.Checksamplenumber import read_meta_folder, process_sum_file, find_meta_only
+from Logic.Checksamplenumber import (
+    read_meta_folder, process_sum_file, find_meta_only,
+)
 
 
 def run_check_sample_number(meta_folder, sum_file, output_folder, progress_callback=None):
     """Chạy pipeline check sample number:
        - meta_folder  : folder chứa nhiều file metadata (Source Metadata)
        - sum_file     : file SUM Excel (File Sum)
-       - output_folder: nơi xuất 3 file Excel kết quả
+       - output_folder: nơi xuất file kết quả
 
        Output:
-         - metadata_combined.xlsx     : df_meta gộp
-         - <sum_stem>_solution.xlsx   : df_sum đã xử lý
-         - meta_only.xlsx             : 3 cột (RunName, expNum, sampleOrder)
-                                        các dòng có trong meta nhưng KHÔNG match trong sum
+         - meta_only.xlsx : các dòng meta KHÔNG match trong SUM (chỉ xuất khi có)
+         Nếu meta khớp đầy đủ với SUM → KHÔNG xuất file, trả về meta_only_path=None.
 
-       Return dict với đường dẫn 3 file + số dòng từng bảng.
+       Return dict với đường dẫn file (nếu có) + số dòng từng bảng.
     """
     os.makedirs(output_folder, exist_ok=True)
 
@@ -47,22 +47,18 @@ def run_check_sample_number(meta_folder, sum_file, output_folder, progress_callb
     if progress_callback:
         progress_callback(85, 100)
 
-    # 4. Xuất 3 file Excel
-    sum_stem = os.path.splitext(os.path.basename(sum_file))[0]
-    meta_path      = os.path.join(output_folder, "metadata_combined.xlsx")
-    sum_path       = os.path.join(output_folder, f"{sum_stem}_solution.xlsx")
-    meta_only_path = os.path.join(output_folder, "meta_only.xlsx")
-
-    df_meta.to_excel(meta_path, index=False)
-    df_sum.to_excel(sum_path, index=False)
-    df_meta_only.to_excel(meta_only_path, index=False)
+    # 4. Chỉ xuất meta_only.xlsx nếu có dòng chưa match
+    meta_only_path = None
+    if not df_meta_only.empty:
+        meta_only_path = os.path.join(output_folder, "meta_only.xlsx")
+        df_meta_only.to_excel(meta_only_path, index=False)
 
     if progress_callback:
         progress_callback(100, 100)
 
     return {
-        "meta_path":      meta_path,
-        "sum_path":       sum_path,
+        "meta_path":      None,
+        "sum_path":       None,
         "meta_only_path": meta_only_path,
         "n_meta":         len(df_meta),
         "n_sum":          len(df_sum),
